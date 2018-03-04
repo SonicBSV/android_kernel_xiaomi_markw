@@ -52,6 +52,9 @@
 #define WCD_MBHC_DEF_RLOADS 5
 #define MAX_WSA_CODEC_NAME_LENGTH 80
 #define MSM_DT_MAX_PROP_SIZE 80
+#ifdef CONFIG_MACH_XIAOMI_MIDO
+#define EXT_PA_MODE  5
+#endif
 
 enum btsco_rates {
 	RATE_8KHZ_ID,
@@ -93,6 +96,16 @@ static struct wcd_mbhc_config mbhc_cfg = {
 	.mono_stero_detection = false,
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = false,
+#ifdef CONFIG_MACH_XIAOMI_MIDO
+	.key_code[0] = KEY_MEDIA,
+	.key_code[1] = BTN_1,
+	.key_code[2] = BTN_2,
+	.key_code[3] = 0,
+	.key_code[4] = 0,
+	.key_code[5] = 0,
+	.key_code[6] = 0,
+	.key_code[7] = 0,
+#else
 	.key_code[0] = KEY_MEDIA,
 	.key_code[1] = KEY_VOICECOMMAND,
 	.key_code[2] = KEY_VOLUMEUP,
@@ -101,6 +114,7 @@ static struct wcd_mbhc_config mbhc_cfg = {
 	.key_code[5] = 0,
 	.key_code[6] = 0,
 	.key_code[7] = 0,
+#endif
 	.linein_th = 5000,
 };
 
@@ -257,6 +271,9 @@ int is_ext_spk_gpio_support(struct platform_device *pdev,
 			return -EINVAL;
 		}
 	}
+#ifdef CONFIG_MACH_XIAOMI_MIDO
+	gpio_direction_output(pdata->spk_ext_pa_gpio, 0);
+#endif
 	return 0;
 }
 
@@ -264,7 +281,11 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 {
 	struct snd_soc_card *card = codec->component.card;
 	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+#ifdef CONFIG_MACH_XIAOMI_MIDO
+	int pa_mode = EXT_PA_MODE;
+#else
 	int ret;
+#endif
 
 	if (!gpio_is_valid(pdata->spk_ext_pa_gpio)) {
 		pr_err("%s: Invalid gpio: %d\n", __func__,
@@ -276,6 +297,18 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 		enable ? "Enable" : "Disable");
 
 	if (enable) {
+#ifdef CONFIG_MACH_XIAOMI_MIDO
+		while (pa_mode > 0) {
+			gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, 0);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
+			udelay(2);
+			pa_mode--;
+		}
+	} else {
+		gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
+	}
+#else
 		ret = msm_gpioset_activate(CLIENT_WCD_INT, "ext_spk_gpio");
 		if (ret) {
 			pr_err("%s: gpio set cannot be de-activated %s\n",
@@ -292,6 +325,7 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 			return ret;
 		}
 	}
+#endif
 	return 0;
 }
 
@@ -1545,7 +1579,11 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 		return NULL;
 
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm8952_wcd_cal)->X) = (Y))
+#ifdef CONFIG_MACH_XIAOMI_MIDO
+	S(v_hs_max, 1600);
+#else
 	S(v_hs_max, 1500);
+#endif
 #undef S
 #define S(X, Y) ((WCD_MBHC_CAL_BTN_DET_PTR(msm8952_wcd_cal)->X) = (Y))
 	S(num_btn, WCD_MBHC_DEF_BUTTONS);
@@ -1568,6 +1606,18 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	 * 210-290 == Button 2
 	 * 360-680 == Button 3
 	 */
+#ifdef CONFIG_MACH_XIAOMI_MIDO
+	btn_low[0] = 73;
+	btn_high[0] = 73;
+	btn_low[1] = 233;
+	btn_high[1] = 233;
+	btn_low[2] = 438;
+	btn_high[2] = 438;
+	btn_low[3] = 438;
+	btn_high[3] = 438;
+	btn_low[4] = 438;
+	btn_high[4] = 438;
+#else
 	btn_low[0] = 75;
 	btn_high[0] = 75;
 	btn_low[1] = 150;
@@ -1578,6 +1628,7 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	btn_high[3] = 450;
 	btn_low[4] = 500;
 	btn_high[4] = 500;
+#endif
 
 	return msm8952_wcd_cal;
 }
