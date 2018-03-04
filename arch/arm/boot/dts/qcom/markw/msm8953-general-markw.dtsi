@@ -10,6 +10,17 @@
  * GNU General Public License for more details.
  */
 
+/ {
+	firmware: firmware {
+		android {
+			compatible = "android,firmware";
+			fstab {
+				/delete-node/ vendor;
+			};
+		};
+	};
+};
+
 &spmi_bus {
 	qcom,pm8953@0 {
 		qcom,power-on@800 {
