@@ -96,6 +96,7 @@ static struct wcd_mbhc_config mbhc_cfg = {
 	.mono_stero_detection = false,
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = false,
+#ifdef CONFIG_MACH_XIAOMI_MSM8953
 #ifdef CONFIG_MACH_XIAOMI_MIDO
 	.key_code[0] = KEY_MEDIA,
 	.key_code[1] = BTN_1,
@@ -105,7 +106,8 @@ static struct wcd_mbhc_config mbhc_cfg = {
 	.key_code[5] = 0,
 	.key_code[6] = 0,
 	.key_code[7] = 0,
-#else ifdef CONFIG_MACH_XIAOMI_MARKW
+#endif
+#ifdef CONFIG_MACH_XIAOMI_MARKW
 	.key_code[0] = KEY_MEDIA,
 	.key_code[1] = KEY_PREVIOUSSONG_NEW,
 	.key_code[2] = KEY_NEXTSONG_NEW,
@@ -114,6 +116,7 @@ static struct wcd_mbhc_config mbhc_cfg = {
 	.key_code[5] = 0,
 	.key_code[6] = 0,
 	.key_code[7] = 0,
+#endif
 #else
 	.key_code[0] = KEY_MEDIA,
 	.key_code[1] = KEY_VOICECOMMAND,
@@ -1615,6 +1618,7 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	 * 210-290 == Button 2
 	 * 360-680 == Button 3
 	 */
+#ifdef CONFIG_MACH_XIAOMI_MSM8953
 #ifdef CONFIG_MACH_XIAOMI_MIDO
 	btn_low[0] = 73;
 	btn_high[0] = 73;
@@ -1626,7 +1630,8 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	btn_high[3] = 438;
 	btn_low[4] = 438;
 	btn_high[4] = 438;
-#else ifdef CONFIG_MACH_XIAOMI_MARKW
+#endif
+#ifdef CONFIG_MACH_XIAOMI_MARKW
 	btn_low[0] = 25;
 	btn_high[0] = 75;
 	btn_low[1] = 200;
@@ -1637,6 +1642,7 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	btn_high[3] = 510;
 	btn_low[4] = 530;
 	btn_high[4] = 540;
+#endif
 #else
 	btn_low[0] = 75;
 	btn_high[0] = 75;
