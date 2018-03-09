@@ -457,6 +457,10 @@ static int32_t msm_flash_i2c_write_setting_array(
 	return rc;
 }
 
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+struct msm_flash_ctrl_t *flash_ctrl_wt = NULL;
+#endif
+
 static int32_t msm_flash_init(
 	struct msm_flash_ctrl_t *flash_ctrl,
 	struct msm_flash_cfg_data_t *flash_data)
@@ -600,7 +604,11 @@ static int32_t msm_flash_low(
 			led_trigger_event(flash_ctrl->flash_trigger[i], 0);
 
 	/* Turn on flash triggers */
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+	for (i = 0; i < flash_ctrl->torch_num_sources - 1; i++) {
+#else
 	for (i = 0; i < flash_ctrl->torch_num_sources; i++) {
+#endif
 		if (flash_ctrl->torch_trigger[i]) {
 			max_current = flash_ctrl->torch_max_current[i];
 			if (flash_data->flash_current[i] >= 0 &&
@@ -623,6 +631,37 @@ static int32_t msm_flash_low(
 	return 0;
 }
 
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+int32_t wt_flash_flashlight(bool boolean)
+{
+	uint32_t curr = 0;
+	int32_t i = 0;
+
+	if (boolean)
+		curr = 100;
+	else
+		curr = 0;
+
+	if (flash_ctrl_wt) {
+	CDBG("WT Enter\n");
+
+	/* Turn on flash triggers */
+	CDBG("WT_XJB  flash_ctrl_wt->torch_num_sources = %d", flash_ctrl_wt->torch_num_sources);
+	for (i = 0; i < flash_ctrl_wt->torch_num_sources - 1; i++) {
+		CDBG("WT low_flash_current[%d] = %d\n", i, curr);
+		if (flash_ctrl_wt->torch_trigger[i]) {
+			led_trigger_event(flash_ctrl_wt->torch_trigger[i],
+				curr);
+		}
+	}
+	if (flash_ctrl_wt->switch_trigger)
+		led_trigger_event(flash_ctrl_wt->switch_trigger, 1);
+		CDBG("WT Exit\n");
+	}
+	return 0;
+}
+#endif
+
 static int32_t msm_flash_high(
 	struct msm_flash_ctrl_t *flash_ctrl,
 	struct msm_flash_cfg_data_t *flash_data)
@@ -632,7 +671,11 @@ static int32_t msm_flash_high(
 	int32_t i = 0;
 
 	/* Turn off torch triggers */
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+	for (i = 0; i < flash_ctrl->torch_num_sources - 1; i++)
+#else
 	for (i = 0; i < flash_ctrl->torch_num_sources; i++)
+#endif
 		if (flash_ctrl->torch_trigger[i])
 			led_trigger_event(flash_ctrl->torch_trigger[i], 0);
 
@@ -1007,6 +1050,16 @@ static int32_t msm_flash_get_dt_data(struct device_node *of_node,
 
 	fctrl->flash_driver_type = FLASH_DRIVER_DEFAULT;
 
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+	rc = msm_flash_get_pmic_source_info(of_node, fctrl);
+	if (rc < 0) {
+		pr_err("%s:%d msm_flash_get_pmic_source_info failed rc %d\n", __func__, __LINE__, rc);
+		return rc;
+	}
+	if (fctrl->flash_driver_type == FLASH_DRIVER_PMIC)
+		return 0;
+#endif
+
 	/* Read the CCI master. Use M0 if not available in the node */
 	rc = of_property_read_u32(of_node, "qcom,cci-master",
 		&fctrl->cci_i2c_master);
@@ -1020,6 +1073,7 @@ static int32_t msm_flash_get_dt_data(struct device_node *of_node,
 		fctrl->flash_driver_type = FLASH_DRIVER_I2C;
 	}
 
+#ifndef CONFIG_MACH_XIAOMI_MARKW
 	/* Read the flash and torch source info from device tree node */
 	rc = msm_flash_get_pmic_source_info(of_node, fctrl);
 	if (rc < 0) {
@@ -1027,6 +1081,7 @@ static int32_t msm_flash_get_dt_data(struct device_node *of_node,
 			__func__, __LINE__, rc);
 		return rc;
 	}
+#endif
 
 	/* Read the gpio information from device tree */
 	rc = msm_sensor_driver_get_gpio_data(
@@ -1196,6 +1251,9 @@ static int msm_camera_flash_i2c_probe(struct i2c_client *client,
 #endif
 	flash_ctrl->msm_sd.sd.devnode->fops = &msm_flash_v4l2_subdev_fops;
 
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+	flash_ctrl_wt = flash_ctrl;
+#endif
 	CDBG("probe success\n");
 	return rc;
 }

@@ -62,7 +62,7 @@
 #define FALSE  0
 
 #define MAX_LANE_COUNT 4
-#ifdef CONFIG_MACH_XIAOMI_MIDO
+#if defined CONFIG_MACH_XIAOMI_MIDO || CONFIG_MACH_XIAOMI_MARKW
 #define CSID_TIMEOUT msecs_to_jiffies(500)
 #else
 #define CSID_TIMEOUT msecs_to_jiffies(100)
