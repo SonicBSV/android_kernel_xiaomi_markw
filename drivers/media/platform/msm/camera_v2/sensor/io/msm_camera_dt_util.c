@@ -285,7 +285,6 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 		src_node = NULL;
 	}
 
-#ifndef CONFIG_MSMB_WITHOUT_IR
 	src_node = of_parse_phandle(of_node, "qcom,ir-led-src", 0);
 	if (!src_node) {
 		CDBG("%s:%d src_node NULL\n", __func__, __LINE__);
@@ -317,7 +316,6 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 		of_node_put(src_node);
 		src_node = NULL;
 	}
-#endif
 
 	rc = of_property_read_u32(of_node, "qcom,strobe-flash-sd-index", &val);
 	if (rc != -EINVAL) {
@@ -878,7 +876,6 @@ int msm_camera_init_gpio_pin_tbl(struct device_node *of_node,
 		return rc;
 	}
 
-#ifndef CONFIG_MSMB_WITHOUT_IR
 	rc = of_property_read_u32(of_node, "qcom,gpio-ir-p", &val);
 	if (rc != -EINVAL) {
 		if (rc < 0) {
@@ -925,7 +922,6 @@ int msm_camera_init_gpio_pin_tbl(struct device_node *of_node,
 	} else {
 		rc = 0;
 	}
-#endif
 
 	rc = of_property_read_u32(of_node, "qcom,gpio-vana", &val);
 	if (rc != -EINVAL) {
