@@ -14,8 +14,8 @@
 
 /dts-v1/;
 
-#include "msm8953.dtsi"
-#include "msm-pmi8950.dtsi"
+#include "markw/common/msm8953.dtsi"
+#include "markw/common/msm-pmi8950.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. MSM8953 QRD MARKW (WT88553)";
