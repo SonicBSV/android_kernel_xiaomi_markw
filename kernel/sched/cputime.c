@@ -81,10 +81,8 @@ void irqtime_account_irq(struct task_struct *curr)
 
 	if (account)
 		sched_account_irqtime(cpu, curr, delta, wallclock);
-#ifndef CONFIG_SCHED_QHMP
- else if (curr != this_cpu_ksoftirqd())
+	else if (curr != this_cpu_ksoftirqd())
 		sched_account_irqstart(cpu, curr, wallclock);
-#endif
 
 	local_irq_restore(flags);
 }
