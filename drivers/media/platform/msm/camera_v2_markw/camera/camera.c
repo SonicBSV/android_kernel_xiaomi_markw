@@ -635,19 +635,6 @@ static void camera_v4l2_vb2_q_release(struct file *filep)
 	mutex_unlock(&sp->lock);
 }
 
-static void print_additional_debug_info(struct file *filep)
-{
-	struct msm_video_device *pvdev = video_drvdata(filep);
-	struct video_device *vdev = pvdev->vdev;
-	// todo: change to pr_info
-	pr_err("device name: %s", vdev->name);
-	pr_err("device vfl type: %d", vdev->vfl_type);
-	pr_err("device minor: %d", vdev->minor);
-	pr_err("device num: %d", vdev->num);
-	pr_err("device flags: %lu", vdev->flags);
-	pr_err("device index: %d", vdev->index);
-}
-
 static int camera_v4l2_open(struct file *filep)
 {
 	int rc = 0;
@@ -655,7 +642,6 @@ static int camera_v4l2_open(struct file *filep)
 	struct msm_video_device *pvdev = video_drvdata(filep);
 	unsigned int opn_idx, idx;
 	BUG_ON(!pvdev);
-	print_additional_debug_info(filep);
 
 	mutex_lock(&pvdev->video_drvdata_mutex);
 	rc = camera_v4l2_fh_open(filep);
@@ -706,7 +692,6 @@ static int camera_v4l2_open(struct file *filep)
 			if (rc < 0) {
 				pr_err("%s : NEW_SESSION event failed,rc %d\n",
 					__func__, rc);
-				dump_stack();
 				goto post_fail;
 			}
 
