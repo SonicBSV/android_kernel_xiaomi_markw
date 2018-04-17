@@ -455,7 +455,7 @@
 /* msm8953-gpu.dtsi */
 &soc {
 	msm_gpu: qcom,kgsl-3d0@1c00000 {
-		qcom,initial-pwrlevel = <7>;
+		qcom,initial-pwrlevel = <8>;
 		};
 
 	msm_gpu: qcom,kgsl-3d0@1c00000 {
@@ -528,22 +528,32 @@
 					reg = <6>;
 					qcom,gpu-freq = <216000000>;
 					qcom,bus-freq = <5>;
-					qcom,bus-max = <6>;
 					qcom,bus-min = <2>;
+					qcom,bus-max = <6>;
+
 				};
 
-			       /* Min SVS */
+			       /* Min SVS+ */
 				qcom,gpu-pwrlevel@7 {
 					reg = <7>;
-					qcom,gpu-freq = <100000000>;
+					qcom,gpu-freq = <160000000>;
 					qcom,bus-freq = <2>;
-					qcom,bus-min = <1>;
+					qcom,bus-min = <2>;
 					qcom,bus-max = <4>;
 				};
 
-				/* XO */
+			       /* Min SVS */
 				qcom,gpu-pwrlevel@8 {
 					reg = <8>;
+					qcom,gpu-freq = <100000000>;
+					qcom,bus-freq = <2>;
+					qcom,bus-min = <1>;
+					qcom,bus-max = <3>;
+				};
+
+				/* XO */
+				qcom,gpu-pwrlevel@9 {
+					reg = <9>;
 					qcom,gpu-freq = <19200000>;
 					qcom,bus-freq = <0>;
 					qcom,bus-min = <0>;
@@ -556,7 +566,7 @@
 /* for gpu in msm8953-regulator.dtsi*/
 &soc {
 		gfx_vreg_corner: ldo@0185f000 {
-			regulator-max-microvolt = <8>;
+			regulator-max-microvolt = <9>;
 		};
 };
 
@@ -564,7 +574,7 @@
 &soc {
 	qcom,msm-thermal {
 		qcom,vdd-gfx-rstr {
-			qcom,levels = <5 7 8>; /* Nominal, Turbo, Turbo+ */
+			qcom,levels = <5 8 9>; /* Nominal, Turbo, Turbo+ */
 		};
 	};
 
@@ -572,13 +582,14 @@
 		qcom,gfxfreq-corner =
 			<         0   0 >,
 			< 100000000   1 >,  /* Min SVS   */
-			< 216000000   2 >,  /* Low SVS   */
-			< 320000000   3 >,  /* SVS       */
-			< 400000000   4 >,  /* SVS+  */
-			< 510000000   5 >,  /* NOM       */
-			< 560000000   6 >,  /* Nom+  */
-			< 650000000   7 >,  /* Turbo     */
-			< 700000000   8 >;  /* Turbo+     */
+			< 160000000   2 >,  /* Min SVS+   */
+			< 216000000   3 >,  /* Low SVS   */
+			< 320000000   4 >,  /* SVS       */
+			< 400000000   5 >,  /* SVS+  */
+			< 510000000   6 >,  /* NOM       */
+			< 560000000   7 >,  /* Nom+  */
+			< 650000000   8 >,  /* Turbo     */
+			< 700000000   9 >;  /* Turbo+     */
 		#clock-cells = <1>;
 	};
 };
