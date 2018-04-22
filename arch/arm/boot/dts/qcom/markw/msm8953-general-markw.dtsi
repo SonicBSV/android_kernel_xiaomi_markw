@@ -10,12 +10,11 @@
  * GNU General Public License for more details.
  */
 
-/ {
-	firmware: firmware {
-		android {
-			compatible = "android,firmware";
-			fstab {
-				/delete-node/ vendor;
+&firmware {
+	android {
+		fstab {
+			vendor {
+				dev = "/dev/block/platform/soc/7824900.sdhci/by-name/cust";
 			};
 		};
 	};
