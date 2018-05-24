@@ -642,7 +642,7 @@ KBUILD_CFLAGS	+= $(call cc-option,-Oz,-Os)
 KBUILD_CFLAGS	+= $(call cc-disable-warning,maybe-uninitialized,)
 else
 ifeq ($(cc-name),clang)
-KBUILD_CFLAGS	+= -O3
+KBUILD_CFLAGS	+= -O2
 else
 KBUILD_CFLAGS	+= -O2
 endif
