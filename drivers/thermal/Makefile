@@ -48,6 +48,4 @@ obj-$(CONFIG_LIMITS_LITE_HW)	+= lmh_lite.o
 
 #TODO: remove me b/62058353
 subdir-ccflags-y += \
-	-Wno-parentheses-equality \
-	-Wno-enum-conversion \
-	-Wno-gcc-compat
+	-Wno-enum-conversion
