@@ -1591,7 +1591,7 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 		return NULL;
 
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm8952_wcd_cal)->X) = (Y))
-#ifdef CONFIG_MACH_XIAOMI_MIDO
+#if defined(CONFIG_MACH_XIAOMI_MIDO) || defined(CONFIG_MACH_XIAOMI_MARKW)
 	S(v_hs_max, 1600);
 #else
 	S(v_hs_max, 1500);
