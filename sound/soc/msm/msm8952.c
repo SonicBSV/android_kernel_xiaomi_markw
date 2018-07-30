@@ -109,8 +109,8 @@ static struct wcd_mbhc_config mbhc_cfg = {
 #endif
 #ifdef CONFIG_MACH_XIAOMI_MARKW
 	.key_code[0] = KEY_MEDIA,
-	.key_code[1] = KEY_PREVIOUSSONG_NEW,
-	.key_code[2] = KEY_NEXTSONG_NEW,
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
 	.key_code[3] = KEY_VOICECOMMAND,
 	.key_code[4] = 0,
 	.key_code[5] = 0,
