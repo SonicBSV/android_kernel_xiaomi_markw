@@ -63,6 +63,7 @@ obj-$(CONFIG_LEDS_AW2013)		+= leds-aw2013_markw.o
 obj-$(CONFIG_LEDS_GPIO)			+= leds-gpio_markw.o
 obj-$(CONFIG_LEDS_QPNP_FLASH)		+= leds-qpnp-flash_markw.o
 else
+obj-$(CONFIG_LEDS_MSM_GPIO_FLASH)	+= leds-msm-gpio-flash.o
 obj-$(CONFIG_LEDS_AW2013)		+= leds-aw2013.o
 obj-$(CONFIG_LEDS_GPIO)			+= leds-gpio.o
 obj-$(CONFIG_LEDS_QPNP_FLASH)		+= leds-qpnp-flash.o
