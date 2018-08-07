@@ -221,26 +221,16 @@ int hdd_hostapd_open (struct net_device *dev)
   --------------------------------------------------------------------------*/
 int __hdd_hostapd_stop (struct net_device *dev)
 {
-   hdd_adapter_t *adapter = WLAN_HDD_GET_PRIV_PTR(dev);
-   hdd_context_t *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
-   int ret;
-
    ENTER();
 
-   ret = wlan_hdd_validate_context(hdd_ctx);
-   if (0 != ret)
-       return ret;
+   if(NULL != dev) {
+       hddLog(VOS_TRACE_LEVEL_INFO, FL("Disabling queues"));
+       //Stop all tx queues
+       netif_tx_disable(dev);
 
-   hddLog(VOS_TRACE_LEVEL_INFO, FL("Disabling queues"));
-
-   //Stop all tx queues
-   netif_tx_disable(dev);
-
-   //Turn OFF carrier state
-   netif_carrier_off(dev);
-
-   if (!hdd_is_cli_iface_up(hdd_ctx))
-       sme_ScanFlushResult(hdd_ctx->hHal, 0);
+       //Turn OFF carrier state
+       netif_carrier_off(dev);
+   }
 
    EXIT();
    return 0;
@@ -2009,8 +1999,8 @@ void hdd_check_for_unsafe_ch(hdd_adapter_t *phostapd_adapter,
                                 &unsafeChannelCount);
     for (channelLoop = 0; channelLoop < unsafeChannelCount; channelLoop++)
     {
-        if ((unsafeChannelList[channelLoop] ==
-             phostapd_adapter->sessionCtx.ap.operatingChannel)) {
+        if (unsafeChannelList[channelLoop] ==
+             phostapd_adapter->sessionCtx.ap.operatingChannel) {
             if ((AUTO_CHANNEL_SELECT ==
                 phostapd_adapter->sessionCtx.ap.sapConfig.channel)
                 && (WLAN_HDD_SOFTAP == phostapd_adapter->device_mode)) {
@@ -2241,7 +2231,7 @@ void hdd_hostapd_ch_avoid_cb
 
            for (i = 0; i < unsafeChannelCount; i++)
            {
-               if ((pSapCtx->sap_sec_chan == unsafeChannelList[i]))
+               if (pSapCtx->sap_sec_chan == unsafeChannelList[i])
                {
                    /* Current SAP Secondary channel is un-safe channel */
                    VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,

@@ -14,10 +14,4 @@ clean::
 	rm -f *.o *.ko *.mod.c *.mod.o *~ .*.cmd Module.symvers
 	rm -rf .tmp_versions
 
-subdir-ccflags-y += \
-	-Wno-array-bounds \
-	-Wno-empty-body \
-	-Wno-enum-conversion \
-	-Wno-non-literal-null-conversion \
-	-Wno-parentheses-equality \
-	-Wno-typedef-redefinition
+
