@@ -131,14 +131,35 @@ static int modify_cmd_line(const char *cmd_line,
 
 /*
  * This function will be called for each of command line parameters and at the
- * end of patameter list as well.
+ * end of patameter list as well. See modify_cmd_line_example_callback() below.
  */
 static int modify_cmd_line_callback(const char *name, const char *val, const char ***list)
+{
+	(void)val;
+
+	if ((name != NULL) &&
+	    (strcmp(name, "androidboot.verifiedbootstate") == 0)) {
+		// NULL terminated list of strings to replace "androidboot.verifiedbootstate"
+		static const char *replace_list[] = { "androidboot.verifiedbootstate=green", NULL };
+		*list = replace_list;
+		return 0; /* drop old value */
+	}
+
+	return 1; /* accept by default */
+}
+
+#if 0
+/*
+ * Example callback:
+ * This function will be called for each of command line parameters and at the
+ * end of patameter list as well.
+ */
+static int modify_cmd_line_example_callback(const char *name, const char *val, const char ***list)
 {
 	/* check for end of parameter list */
 	if ((name == NULL) && (val == NULL)){
 		// NULL terminated list of strings to append at the end of command line
-		static const char *return_list[] = { NULL };
+		static const char *return_list[] = { "some_param1=some_value1", "simple_param1", NULL };
 		*list = return_list;
 		return 1;
 	}
@@ -156,11 +177,10 @@ static int modify_cmd_line_callback(const char *name, const char *val, const cha
 		return 0; /* drop */
 	}
 
-#if 0
 	/* replace parameters */
-	if (strcmp(name, "some_param") == 0) {
-		// NULL terminated list of strings to replace "some_param"
-		static const char *return_list[] = { "other_param1=some_value1", "other_param2=some_value2", NULL };
+	if (strcmp(name, "some_param2") == 0) {
+		// NULL terminated list of strings to replace "some_param2"
+		static const char *return_list[] = { "other_param1=other_value1", "other_param2=other_value2", NULL };
 		// protection against double replacent
 		static int replaced = 0;
 
@@ -172,10 +192,10 @@ static int modify_cmd_line_callback(const char *name, const char *val, const cha
 	}
 
 	/* accept parameters and add some values after it */
-	if ((strcmp(name, "some_param_qqq") == 0) &&
-	    (strcmp(val,  "some_value_qqq") == 0)) {
-		// NULL terminated list of strings to add after "some_param_qqq=some_value_qqq"
-		static const char *return_list[] = {"other_param_qqq1=some_value1", "other_param_qqq2=some_value2", NULL};
+	if ((strcmp(name, "some_param3") == 0) &&
+	    (strcmp(val,  "some_value3") == 0)) {
+		// NULL terminated list of strings to add after "some_param3=some_value3"
+		static const char *return_list[] = {"other_param3=other_value3", "other_param4=other_value4", NULL};
 		// protection against double addition
 		static int added = 0;
 
@@ -185,10 +205,10 @@ static int modify_cmd_line_callback(const char *name, const char *val, const cha
 		}
 		return 1; /* accept */
 	}
-#endif
 
 	return 1; /* accept by default */
 }
+#endif
 
 static int __init proc_cmdline_init(void)
 {
