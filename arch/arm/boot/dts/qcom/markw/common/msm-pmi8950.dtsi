@@ -148,6 +148,7 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			label = "pmi8950-gpio";
+			status = "disabled";
 
 			gpio@c000 {
 				reg = <0xc000 0x100>;
@@ -170,6 +171,7 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			label = "pmi8950-mpp";
+			status = "disabled";
 
 			mpp@a000 {
 				reg = <0xa000 0x100>;
