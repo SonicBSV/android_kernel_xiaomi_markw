@@ -5761,7 +5761,7 @@ static int smbchg_prepare_for_pulsing_lite(struct smbchg_chip *chip)
 	/* re-run APSD */
 	rc = rerun_apsd(chip);
 	if (rc) {
-		pr_err("APSD rerun failed\n");
+		pr_err("APSD rerun failed rc=%d\n", rc);
 		goto out;
 	}
 
@@ -6137,9 +6137,6 @@ static void smbchg_external_power_changed(struct power_supply *psy)
 				msecs_to_jiffies(HVDCP_NOTIFY_MS));
 	}
 
-	if (usb_supply_type != POWER_SUPPLY_TYPE_USB)
-		goto  skip_current_for_non_sdp;
-
 	pr_smb(PR_MISC, "usb type = %s current_limit = %d\n",
 			usb_type_name, current_limit);
 
@@ -6147,9 +6144,6 @@ static void smbchg_external_power_changed(struct power_supply *psy)
 				current_limit);
 	if (rc < 0)
 		pr_err("Couldn't update USB PSY ICL vote rc=%d\n", rc);
-
-skip_current_for_non_sdp:
-	smbchg_vfloat_adjust_check(chip);
 
 	power_supply_changed(&chip->batt_psy);
 }
@@ -8855,9 +8849,11 @@ static void smbchg_shutdown(struct spmi_device *spmi)
 	disable_irq(chip->otg_oc_irq);
 	disable_irq(chip->power_ok_irq);
 	disable_irq(chip->recharge_irq);
+	disable_irq(chip->src_detect_irq);
 	disable_irq(chip->taper_irq);
 	disable_irq(chip->usbid_change_irq);
 	disable_irq(chip->usbin_ov_irq);
+	disable_irq(chip->usbin_uv_irq);
 	disable_irq(chip->vbat_low_irq);
 	disable_irq(chip->wdog_timeout_irq);
 
@@ -8918,9 +8914,6 @@ static void smbchg_shutdown(struct spmi_device *spmi)
 	rc = fake_insertion_removal(chip, true);
 	if (rc < 0)
 		pr_err("Couldn't fake insertion rc=%d\n", rc);
-
-	disable_irq(chip->src_detect_irq);
-	disable_irq(chip->usbin_uv_irq);
 
 	pr_smb(PR_MISC, "Wait 1S to settle\n");
 	msleep(1000);
