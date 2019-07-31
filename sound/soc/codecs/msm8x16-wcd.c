@@ -5891,7 +5891,7 @@ static ssize_t mic2_gain_store(struct kobject *kobj,
 
 	sscanf(buf, "%d", &input);
 
-	if (input < -10 || input > 20)
+	if (input < -20 || input > 30)
 		input = 0;
 
 	snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_TX2_VOL_CTL_GAIN, input);
