@@ -2650,10 +2650,11 @@ static const struct snd_kcontrol_new msm8x16_wcd_snd_controls[] = {
 	SOC_SINGLE_SX_TLV("RX3 Digital Volume",
 			  MSM8X16_WCD_A_CDC_RX3_VOL_CTL_B2_CTL,
 			0,  -84, 40, digital_gain),
-#endif
+
 	SOC_SINGLE_SX_TLV("DEC1 Volume",
 			  MSM8X16_WCD_A_CDC_TX1_VOL_CTL_GAIN,
 			0,  -84, 40, digital_gain),
+#endif
 	SOC_SINGLE_SX_TLV("DEC2 Volume",
 			  MSM8X16_WCD_A_CDC_TX2_VOL_CTL_GAIN,
 			0,  -84, 40, digital_gain),
