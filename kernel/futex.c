@@ -1601,6 +1601,9 @@ static int futex_requeue(u32 __user *uaddr1, unsigned int flags,
 	if (nr_wake < 0 || nr_requeue < 0)
 		return -EINVAL;
 
+	if (nr_wake < 0 || nr_requeue < 0)
+		return -EINVAL;
+
 	if (requeue_pi) {
 		/*
 		 * Requeue PI only works on two distinct uaddrs. This
@@ -3122,9 +3125,6 @@ SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
 }
 
 static void __init futex_detect_cmpxchg(void)
-#if defined(__clang__) && IS_ENABLED(CONFIG_ARM64)
-__attribute__((optnone))
-#endif
 {
 #ifndef CONFIG_HAVE_FUTEX_CMPXCHG
 	u32 curval;

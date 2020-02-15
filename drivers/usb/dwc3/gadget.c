@@ -1883,7 +1883,7 @@ static int dwc_gadget_func_wakeup(struct usb_gadget *g, int interface_id)
 	if (dwc3_gadget_is_suspended(dwc)) {
 		pr_debug("USB bus is suspended. Scheduling wakeup and returning -EAGAIN.\n");
 		dwc3_gadget_wakeup(&dwc->gadget);
-		return -EAGAIN;
+		return -EACCES;
 	}
 
 	/*
@@ -3001,6 +3001,15 @@ static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 	dwc3_writel(dwc->regs, DWC3_DCTL, reg);
 	dwc->test_mode = false;
 
+	/*
+	 * From SNPS databook section 8.1.2
+	 * the EP0 should be in setup phase. So ensure
+	 * that EP0 is in setup phase by issuing a stall
+	 * and restart if EP0 is not in setup phase.
+	 */
+	if (dwc->ep0state != EP0_SETUP_PHASE)
+		dwc3_ep0_stall_and_restart(dwc);
+
 	dwc3_stop_active_transfers(dwc);
 	dwc3_clear_stall_all_ep(dwc);
 
@@ -3484,6 +3493,13 @@ static void dwc3_process_event_entry(struct dwc3 *dwc,
 	/* Endpoint IRQ, handle it and return early */
 	if (event->type.is_devspec == 0) {
 		/* depevt */
+		/* If remote-wakeup attempt by device had failed, then core
+		 * wouldn't give wakeup event after resume. Handle that
+		 * here on ep event which indicates that bus is resumed.
+		 */
+		if (dwc->b_suspend &&
+		    dwc3_get_link_state(dwc) == DWC3_LINK_STATE_U0)
+			dwc3_gadget_wakeup_interrupt(dwc, false);
 		return dwc3_endpoint_interrupt(dwc, &event->depevt);
 	}
 

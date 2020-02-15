@@ -50,7 +50,8 @@ struct binder_buffer {
 	unsigned free:1;
 	unsigned allow_user_free:1;
 	unsigned async_transaction:1;
-	unsigned debug_id:29;
+	unsigned free_in_progress:1;
+	unsigned debug_id:28;
 
 	struct binder_transaction *transaction;
 
@@ -115,13 +116,15 @@ struct binder_alloc {
 	size_t pages_high;
 };
 
+enum lru_status binder_alloc_free_page(struct list_head *item,
+					spinlock_t *lock, void *cb_arg);
+
 #ifdef CONFIG_ANDROID_BINDER_IPC_SELFTEST
 void binder_selftest_alloc(struct binder_alloc *alloc);
 #else
 static inline void binder_selftest_alloc(struct binder_alloc *alloc) {}
 #endif
-enum lru_status binder_alloc_free_page(struct list_head *item,
-				       spinlock_t *lock, void *cb_arg);
+
 extern struct binder_buffer *binder_alloc_new_buf(struct binder_alloc *alloc,
 						  size_t data_size,
 						  size_t offsets_size,
@@ -143,8 +146,6 @@ extern void binder_alloc_print_allocated(struct seq_file *m,
 					 struct binder_alloc *alloc);
 void binder_alloc_print_pages(struct seq_file *m,
 			      struct binder_alloc *alloc);
-extern int binder_buffer_pool_create(void);
-extern void binder_buffer_pool_destroy(void);
 
 /**
  * binder_alloc_get_free_async_space() - get free space available for async

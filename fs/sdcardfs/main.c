@@ -34,7 +34,6 @@ enum {
 	Opt_reserved_mb,
 	Opt_gid_derivation,
 	Opt_default_normal,
-	Opt_nocache,
 	Opt_unshared_obb,
 	Opt_err,
 };
@@ -51,7 +50,6 @@ static const match_table_t sdcardfs_tokens = {
 	{Opt_default_normal, "default_normal"},
 	{Opt_unshared_obb, "unshared_obb"},
 	{Opt_reserved_mb, "reserved_mb=%u"},
-	{Opt_nocache, "nocache"},
 	{Opt_err, NULL}
 };
 
@@ -75,7 +73,6 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 	/* by default, gid derivation is off */
 	opts->gid_derivation = false;
 	opts->default_normal = false;
-	opts->nocache = false;
 
 	*debug = 0;
 
@@ -132,9 +129,6 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 			break;
 		case Opt_default_normal:
 			opts->default_normal = true;
-			break;
-		case Opt_nocache:
-			opts->nocache = true;
 			break;
 		case Opt_unshared_obb:
 			opts->unshared_obb = true;
@@ -278,7 +272,7 @@ static int sdcardfs_read_super(struct vfsmount *mnt, struct super_block *sb,
 
 	pr_info("sdcardfs: dev_name -> %s\n", dev_name);
 	pr_info("sdcardfs: options -> %s\n", (char *)raw_data);
-	pr_info("sdcardfs: mnt -> %p\n", mnt);
+	pr_info("sdcardfs: mnt -> %pK\n", mnt);
 
 	/* parse lower path */
 	err = kern_path(dev_name, LOOKUP_FOLLOW | LOOKUP_DIRECTORY,

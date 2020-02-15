@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,7 +25,7 @@
 #include "kgsl_pwrscale.h"
 #include "kgsl_snapshot.h"
 #include "kgsl_sharedmem.h"
-#include "kgsl_drawobj.h"
+#include "kgsl_cmdbatch.h"
 
 #include <linux/sync.h>
 
@@ -63,6 +63,8 @@ enum kgsl_event_results {
 	KGSL_EVENT_CANCELLED = 2,
 };
 
+#define KGSL_FLAG_WAKE_ON_TOUCH BIT(0)
+
 /*
  * "list" of event types for ftrace symbolic magic
  */
@@ -88,7 +90,8 @@ enum kgsl_event_results {
 	{ KGSL_CONTEXT_TYPE_GL, "GL" }, \
 	{ KGSL_CONTEXT_TYPE_CL, "CL" }, \
 	{ KGSL_CONTEXT_TYPE_C2D, "C2D" }, \
-	{ KGSL_CONTEXT_TYPE_RS, "RS" }
+	{ KGSL_CONTEXT_TYPE_RS, "RS" }, \
+	{ KGSL_CONTEXT_TYPE_VK, "VK" }
 
 #define KGSL_CONTEXT_ID(_context) \
 	((_context != NULL) ? (_context)->id : KGSL_MEMSTORE_GLOBAL)
@@ -130,9 +133,9 @@ struct kgsl_functable {
 		unsigned int msecs);
 	int (*readtimestamp) (struct kgsl_device *device, void *priv,
 		enum kgsl_timestamp_type type, unsigned int *timestamp);
-	int (*queue_cmds)(struct kgsl_device_private *dev_priv,
-		struct kgsl_context *context, struct kgsl_drawobj *drawobj[],
-		uint32_t count, uint32_t *timestamp);
+	int (*issueibcmds) (struct kgsl_device_private *dev_priv,
+		struct kgsl_context *context, struct kgsl_cmdbatch *cmdbatch,
+		uint32_t *timestamps);
 	void (*power_stats)(struct kgsl_device *device,
 		struct kgsl_power_stats *stats);
 	unsigned int (*gpuid)(struct kgsl_device *device, unsigned int *chipid);
@@ -188,7 +191,7 @@ long kgsl_ioctl_helper(struct file *filep, unsigned int cmd, unsigned long arg,
 
 /**
  * struct kgsl_memobj_node - Memory object descriptor
- * @node: Local list node for the object
+ * @node: Local list node for the cmdbatch
  * @id: GPU memory ID for the object
  * offset: Offset within the object
  * @gpuaddr: GPU address for the object
@@ -237,7 +240,7 @@ struct kgsl_device {
 
 	struct kgsl_mmu mmu;
 	struct completion hwaccess_gate;
-	struct completion halt_gate;
+	struct completion cmdbatch_gate;
 	const struct kgsl_functable *ftbl;
 	struct work_struct idle_check_ws;
 	struct timer_list idle_timer;
@@ -303,7 +306,7 @@ struct kgsl_device {
 
 #define KGSL_DEVICE_COMMON_INIT(_dev) \
 	.hwaccess_gate = COMPLETION_INITIALIZER((_dev).hwaccess_gate),\
-	.halt_gate = COMPLETION_INITIALIZER((_dev).halt_gate),\
+	.cmdbatch_gate = COMPLETION_INITIALIZER((_dev).cmdbatch_gate),\
 	.idle_check_ws = __WORK_INITIALIZER((_dev).idle_check_ws,\
 			kgsl_idle_check),\
 	.context_idr = IDR_INIT((_dev).context_idr),\
@@ -402,9 +405,12 @@ struct kgsl_context {
  * @kobj: Pointer to a kobj for the sysfs directory for this process
  * @debug_root: Pointer to the debugfs root for this process
  * @stats: Memory allocation statistics for this process
+ * @gpumem_mapped: KGSL memory mapped in the process address space
  * @syncsource_idr: sync sources created by this process
  * @syncsource_lock: Spinlock to protect the syncsource idr
  * @fd_count: Counter for the number of FDs for this process
+ * @ctxt_count: Count for the number of contexts for this process
+ * @ctxt_count_lock: Spinlock to protect ctxt_count
  */
 struct kgsl_process_private {
 	unsigned long priv;
@@ -421,9 +427,12 @@ struct kgsl_process_private {
 		uint64_t cur;
 		uint64_t max;
 	} stats[KGSL_MEM_ENTRY_MAX];
+	uint64_t gpumem_mapped;
 	struct idr syncsource_idr;
 	spinlock_t syncsource_lock;
 	int fd_count;
+	atomic_t ctxt_count;
+	spinlock_t ctxt_count_lock;
 };
 
 /**

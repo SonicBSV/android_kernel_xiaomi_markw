@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -72,6 +72,7 @@
 #define FASTRPC_CTXID_MASK (0xFF0)
 
 #define IS_CACHE_ALIGNED(x) (((x) & ((L1_CACHE_BYTES)-1)) == 0)
+#define FASTRPC_STATIC_HANDLE_KERNEL (1)
 
 static void file_free_work_handler(struct work_struct *w);
 
@@ -155,9 +156,11 @@ struct smq_invoke_ctx {
 	int tgid;
 	remote_arg_t *lpra;
 	remote_arg64_t *rpra;
+	remote_arg64_t *lrpra;		/* Local copy of rpra for put_args */
 	int *fds;
 	struct fastrpc_mmap **maps;
 	struct fastrpc_buf *buf;
+	struct fastrpc_buf *lbuf;
 	size_t used;
 	struct fastrpc_file *fl;
 	uint32_t sc;
@@ -286,7 +289,7 @@ static struct fastrpc_channel_ctx gcinfo[NUM_CHANNELS] = {
 	},
 	{
 		.name = "mdsprpc-smd",
-		.subsys = "mdsp",
+		.subsys = "modem",
 		.channel = SMD_APPS_MODEM,
 		.edge = "mdsp",
 	},
@@ -403,6 +406,10 @@ static int fastrpc_mmap_find(struct fastrpc_file *fl, int fd, uintptr_t va,
 			if (va >= map->va &&
 				va + len <= map->va + map->len &&
 				map->fd == fd) {
+				if (map->refs + 1 == INT_MAX) {
+					spin_unlock(&me->hlock);
+					return -ETOOMANYREFS;
+				}
 				map->refs++;
 				match = map;
 				break;
@@ -415,6 +422,10 @@ static int fastrpc_mmap_find(struct fastrpc_file *fl, int fd, uintptr_t va,
 			if (va >= map->va &&
 				va + len <= map->va + map->len &&
 				map->fd == fd) {
+				if (map->refs + 1 == INT_MAX) {
+					spin_unlock(&fl->hlock);
+					return -ETOOMANYREFS;
+				}
 				map->refs++;
 				match = map;
 				break;
@@ -961,6 +972,7 @@ static void context_free(struct smq_invoke_ctx *ctx)
 	for (i = 0; i < nbufs; ++i)
 		fastrpc_mmap_free(ctx->maps[i]);
 	fastrpc_buf_free(ctx->buf, 1);
+	fastrpc_buf_free(ctx->lbuf, 1);
 	ctx->magic = 0;
 	ctx->ctxid = 0;
 
@@ -1073,7 +1085,7 @@ static void fastrpc_file_list_dtor(struct fastrpc_apps *me)
 
 static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 {
-	remote_arg64_t *rpra;
+	remote_arg64_t *rpra, *lrpra;
 	remote_arg_t *lpra = ctx->lpra;
 	struct smq_invoke_buf *list;
 	struct smq_phy_page *pages, *ipage;
@@ -1082,10 +1094,11 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 	int outbufs = REMOTE_SCALARS_OUTBUFS(sc);
 	int bufs = inbufs + outbufs;
 	uintptr_t args;
-	size_t rlen = 0, copylen = 0, metalen = 0;
+	size_t rlen = 0, copylen = 0, metalen = 0, lrpralen = 0;
 	int i, inh, oix;
 	int err = 0;
 	int mflags = 0;
+	DEFINE_DMA_ATTRS(ctx_attrs);
 
 	/* calculate size of the metadata */
 	rpra = NULL;
@@ -1102,7 +1115,22 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 		ipage += 1;
 	}
 	metalen = copylen = (size_t)&ipage[0];
-	/* calculate len requreed for copying */
+
+	/* allocate new local rpra buffer */
+	lrpralen = (u64)(uintptr_t)&list[0];
+	if (lrpralen) {
+		err = fastrpc_buf_alloc(ctx->fl, lrpralen,
+			ctx_attrs, 0, 0, &ctx->lbuf);
+		if (err)
+			goto bail;
+	}
+	if (ctx->lbuf->virt)
+		memset(ctx->lbuf->virt, 0, lrpralen);
+
+	lrpra = ctx->lbuf->virt;
+	ctx->lrpra = lrpra;
+
+	/* calculate len required for copying */
 	for (oix = 0; oix < inbufs + outbufs; ++oix) {
 		int i = ctx->overps[oix]->raix;
 		uintptr_t mstart, mend;
@@ -1128,8 +1156,6 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 
 	/* allocate new buffer */
 	if (copylen) {
-		DEFINE_DMA_ATTRS(ctx_attrs);
-
 		err = fastrpc_buf_alloc(ctx->fl, copylen, ctx_attrs,
 					0, 0, &ctx->buf);
 		if (err)
@@ -1153,12 +1179,13 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 		ipage++;
 	}
 	/* map ion buffers */
-	for (i = 0; i < inbufs + outbufs; ++i) {
+	for (i = 0; rpra && lrpra && i < inbufs + outbufs; ++i) {
 		struct fastrpc_mmap *map = ctx->maps[i];
 		uint64_t buf = ptr_to_uint64(lpra[i].buf.pv);
 		size_t len = lpra[i].buf.len;
-		rpra[i].buf.pv = 0;
-		rpra[i].buf.len = len;
+
+		rpra[i].buf.pv = lrpra[i].buf.pv = 0;
+		rpra[i].buf.len = lrpra[i].buf.len = len;
 		if (!len)
 			continue;
 		if (map) {
@@ -1183,11 +1210,11 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 			pages[idx].addr = map->phys + offset;
 			pages[idx].size = num << PAGE_SHIFT;
 		}
-		rpra[i].buf.pv = buf;
+		rpra[i].buf.pv = lrpra[i].buf.pv = buf;
 	}
 	/* copy non ion buffers */
 	rlen = copylen - metalen;
-	for (oix = 0; oix < inbufs + outbufs; ++oix) {
+	for (oix = 0; rpra && lrpra && oix < inbufs + outbufs; ++oix) {
 		int i = ctx->overps[oix]->raix;
 		struct fastrpc_mmap *map = ctx->maps[i];
 		size_t mlen;
@@ -1206,7 +1233,8 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 		VERIFY(err, rlen >= mlen);
 		if (err)
 			goto bail;
-		rpra[i].buf.pv = (args - ctx->overps[oix]->offset);
+		rpra[i].buf.pv = lrpra[i].buf.pv =
+			 (args - ctx->overps[oix]->offset);
 		pages[list[i].pgidx].addr = ctx->buf->phys -
 					    ctx->overps[oix]->offset +
 					    (copylen - rlen);
@@ -1229,7 +1257,8 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 		struct fastrpc_mmap *map = ctx->maps[i];
 		if (map && map->uncached)
 			continue;
-		if (rpra[i].buf.len && ctx->overps[oix]->mstart) {
+		if (rpra && lrpra && rpra[i].buf.len &&
+		ctx->overps[oix]->mstart) {
 			if (map && map->handle)
 				msm_ion_do_cache_op(ctx->fl->apps->client,
 					map->handle,
@@ -1243,10 +1272,12 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 		}
 	}
 	inh = inbufs + outbufs;
-	for (i = 0; i < REMOTE_SCALARS_INHANDLES(sc); i++) {
-		rpra[inh + i].buf.pv = ptr_to_uint64(ctx->lpra[inh + i].buf.pv);
-		rpra[inh + i].buf.len = ctx->lpra[inh + i].buf.len;
-		rpra[inh + i].h = ctx->lpra[inh + i].h;
+	for (i = 0; rpra && lrpra && i < REMOTE_SCALARS_INHANDLES(sc); i++) {
+		rpra[inh + i].buf.pv = lrpra[inh + i].buf.pv =
+			ptr_to_uint64(ctx->lpra[inh + i].buf.pv);
+		rpra[inh + i].buf.len = lrpra[inh + i].buf.len =
+			ctx->lpra[inh + i].buf.len;
+		rpra[inh + i].h = lrpra[inh + i].h = ctx->lpra[inh + i].h;
 	}
 
  bail:
@@ -1257,7 +1288,7 @@ static int put_args(uint32_t kernel, struct smq_invoke_ctx *ctx,
 		    remote_arg_t *upra)
 {
 	uint32_t sc = ctx->sc;
-	remote_arg64_t *rpra = ctx->rpra;
+	remote_arg64_t *rpra = ctx->lrpra;
 	int i, inbufs, outbufs, outh, size;
 	int err = 0;
 
@@ -1337,7 +1368,7 @@ static void inv_args(struct smq_invoke_ctx *ctx)
 {
 	int i, inbufs, outbufs;
 	uint32_t sc = ctx->sc;
-	remote_arg64_t *rpra = ctx->rpra;
+	remote_arg64_t *rpra = ctx->lrpra;
 	int inv = 0;
 
 	inbufs = REMOTE_SCALARS_INBUFS(sc);
@@ -1482,6 +1513,15 @@ static int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 	int interrupted = 0;
 	int err = 0;
 
+	if (!kernel) {
+		VERIFY(err, invoke->handle != FASTRPC_STATIC_HANDLE_KERNEL);
+		if (err) {
+			pr_err("adsprpc: ERROR: %s: user application %s trying to send a kernel RPC message to channel %d\n",
+				__func__, current->comm, cid);
+			goto bail;
+		}
+	}
+
 	VERIFY(err, fl->sctx != NULL);
 	if (err)
 		goto bail;
@@ -1560,7 +1600,7 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 
 		ra[0].buf.pv = (void *)&tgid;
 		ra[0].buf.len = sizeof(tgid);
-		ioctl.inv.handle = 1;
+		ioctl.inv.handle = FASTRPC_STATIC_HANDLE_KERNEL;
 		ioctl.inv.sc = REMOTE_SCALARS_MAKE(0, 1, 0);
 		ioctl.inv.pra = ra;
 		ioctl.fds = NULL;
@@ -1583,8 +1623,9 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 		inbuf.pgid = current->tgid;
 		inbuf.namelen = strlen(current->comm) + 1;
 		inbuf.filelen = init->filelen;
-		if (!access_ok(VERIFY_READ, (void const __user *)init->file,
-							init->filelen))
+		VERIFY(err, access_ok(0, (void __user *)init->file,
+			init->filelen));
+		if (err)
 			goto bail;
 		if (init->filelen) {
 			VERIFY(err, !fastrpc_mmap_create(fl, init->filefd,
@@ -1631,7 +1672,7 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 		ra[3].buf.len = 1 * sizeof(*pages);
 		fds[3] = 0;
 
-		ioctl.inv.handle = 1;
+		ioctl.inv.handle = FASTRPC_STATIC_HANDLE_KERNEL;
 		ioctl.inv.sc = REMOTE_SCALARS_MAKE(6, 4, 0);
 		ioctl.inv.pra = ra;
 		ioctl.fds = fds;
@@ -1663,7 +1704,7 @@ static int fastrpc_release_current_dsp_process(struct fastrpc_file *fl)
 	tgid = fl->tgid;
 	ra[0].buf.pv = (void *)&tgid;
 	ra[0].buf.len = sizeof(tgid);
-	ioctl.inv.handle = 1;
+	ioctl.inv.handle = FASTRPC_STATIC_HANDLE_KERNEL;
 	ioctl.inv.sc = REMOTE_SCALARS_MAKE(1, 1, 0);
 	ioctl.inv.pra = ra;
 	ioctl.fds = NULL;
@@ -1707,7 +1748,7 @@ static int fastrpc_mmap_on_dsp(struct fastrpc_file *fl, uint32_t flags,
 	ra[2].buf.pv = (void *)&routargs;
 	ra[2].buf.len = sizeof(routargs);
 
-	ioctl.inv.handle = 1;
+	ioctl.inv.handle = FASTRPC_STATIC_HANDLE_KERNEL;
 	if (fl->apps->compat)
 		ioctl.inv.sc = REMOTE_SCALARS_MAKE(4, 2, 1);
 	else
@@ -1748,7 +1789,7 @@ static int fastrpc_munmap_on_dsp_rh(struct fastrpc_file *fl, uint64_t phys,
 	ra[0].buf.pv = (void *)&routargs;
 	ra[0].buf.len = sizeof(routargs);
 
-	ioctl.inv.handle = 1;
+	ioctl.inv.handle = FASTRPC_STATIC_HANDLE_KERNEL;
 	ioctl.inv.sc = REMOTE_SCALARS_MAKE(7, 0, 1);
 	ioctl.inv.pra = ra;
 	ioctl.fds = NULL;
@@ -1792,7 +1833,7 @@ static int fastrpc_munmap_on_dsp(struct fastrpc_file *fl, uintptr_t raddr,
 	ra[0].buf.pv = (void *)&inargs;
 	ra[0].buf.len = sizeof(inargs);
 
-	ioctl.inv.handle = 1;
+	ioctl.inv.handle = FASTRPC_STATIC_HANDLE_KERNEL;
 	if (fl->apps->compat)
 		ioctl.inv.sc = REMOTE_SCALARS_MAKE(5, 1, 0);
 	else
@@ -1852,6 +1893,31 @@ static int fastrpc_mmap_remove(struct fastrpc_file *fl, uintptr_t va,
 			     size_t len, struct fastrpc_mmap **ppmap);
 
 static void fastrpc_mmap_add(struct fastrpc_mmap *map);
+
+static inline void get_fastrpc_ioctl_mmap_64(
+			struct fastrpc_ioctl_mmap_64 *mmap64,
+			struct fastrpc_ioctl_mmap *immap)
+{
+	immap->fd = mmap64->fd;
+	immap->flags = mmap64->flags;
+	immap->vaddrin = (uintptr_t)mmap64->vaddrin;
+	immap->size = mmap64->size;
+}
+
+static inline void put_fastrpc_ioctl_mmap_64(
+			struct fastrpc_ioctl_mmap_64 *mmap64,
+			struct fastrpc_ioctl_mmap *immap)
+{
+	mmap64->vaddrout = (uint64_t)immap->vaddrout;
+}
+
+static inline void get_fastrpc_ioctl_munmap_64(
+			struct fastrpc_ioctl_munmap_64 *munmap64,
+			struct fastrpc_ioctl_munmap *imunmap)
+{
+	imunmap->vaddrout = (uintptr_t)munmap64->vaddrout;
+	imunmap->size = munmap64->size;
+}
 
 static int fastrpc_internal_munmap(struct fastrpc_file *fl,
 				   struct fastrpc_ioctl_munmap *ud)
@@ -1993,8 +2059,10 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 	hlist_del_init(&fl->hn);
 	spin_unlock(&fl->apps->hlock);
 
-	if (!fl->sctx)
-		goto bail;
+	if (!fl->sctx) {
+		kfree(fl);
+		return 0;
+	}
 
 	(void)fastrpc_release_current_dsp_process(fl);
 	if (!IS_ERR_OR_NULL(fl->init_mem))
@@ -2007,8 +2075,6 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 	if (fl->ssrcount == fl->apps->channel[cid].ssrcount)
 		kref_put_mutex(&fl->apps->channel[cid].kref,
 				fastrpc_channel_close, &fl->apps->smd_mutex);
-
-bail:
 	mutex_destroy(&fl->map_mutex);
 	fastrpc_remote_buf_list_free(fl);
 	kfree(fl);
@@ -2290,11 +2356,8 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->init_mem = NULL;
 
 	VERIFY(err, !fastrpc_session_alloc(&me->channel[cid], &session));
-	if (err) {
-		kfree(fl);
-		fl = NULL;
+	if (err)
 		goto bail;
-	}
 	fl->sctx = &me->channel[cid].session[session];
 
 	fl->ssrcount = me->channel[cid].ssrcount;
@@ -2385,10 +2448,16 @@ static long fastrpc_device_ioctl(struct file *file, unsigned int ioctl_num,
 	union {
 		struct fastrpc_ioctl_invoke_fd invokefd;
 		struct fastrpc_ioctl_mmap mmap;
+		struct fastrpc_ioctl_mmap_64 mmap64;
 		struct fastrpc_ioctl_munmap munmap;
+		struct fastrpc_ioctl_munmap_64 munmap64;
 		struct fastrpc_ioctl_init init;
 		struct fastrpc_ioctl_control cp;
 	} p;
+	union {
+		struct fastrpc_ioctl_mmap mmap;
+		struct fastrpc_ioctl_munmap munmap;
+	} i;
 	void *param = (char *)ioctl_param;
 	struct fastrpc_file *fl = (struct fastrpc_file *)file->private_data;
 	int size = 0, err = 0;
@@ -2427,6 +2496,31 @@ static long fastrpc_device_ioctl(struct file *file, unsigned int ioctl_num,
 			goto bail;
 		VERIFY(err, 0 == (err = fastrpc_internal_munmap(fl,
 							&p.munmap)));
+		if (err)
+			goto bail;
+		break;
+	case FASTRPC_IOCTL_MMAP_64:
+		K_COPY_FROM_USER(err, 0, &p.mmap64, param,
+						sizeof(p.mmap64));
+		if (err)
+			goto bail;
+		get_fastrpc_ioctl_mmap_64(&p.mmap64, &i.mmap);
+		VERIFY(err, 0 == (err = fastrpc_internal_mmap(fl, &i.mmap)));
+		if (err)
+			goto bail;
+		put_fastrpc_ioctl_mmap_64(&p.mmap64, &i.mmap);
+		K_COPY_TO_USER(err, 0, param, &p.mmap64, sizeof(p.mmap64));
+		if (err)
+			goto bail;
+		break;
+	case FASTRPC_IOCTL_MUNMAP_64:
+		K_COPY_FROM_USER(err, 0, &p.munmap64, param,
+						sizeof(p.munmap64));
+		if (err)
+			goto bail;
+		get_fastrpc_ioctl_munmap_64(&p.munmap64, &i.munmap);
+		VERIFY(err, 0 == (err = fastrpc_internal_munmap(fl,
+							&i.munmap)));
 		if (err)
 			goto bail;
 		break;
@@ -2469,10 +2563,6 @@ static long fastrpc_device_ioctl(struct file *file, unsigned int ioctl_num,
 	case FASTRPC_IOCTL_INIT:
 		VERIFY(err, 0 == copy_from_user(&p.init, param,
 						sizeof(p.init)));
-		if (err)
-			goto bail;
-		VERIFY(err, p.init.filelen >= 0 &&
-			p.init.memlen >= 0);
 		if (err)
 			goto bail;
 		VERIFY(err, 0 == fastrpc_init_process(fl, &p.init));

@@ -36,13 +36,14 @@ TRACE_EVENT(kgsl_issueibcmds,
 
 	TP_PROTO(struct kgsl_device *device,
 			int drawctxt_id,
+			struct kgsl_cmdbatch *cmdbatch,
 			unsigned int numibs,
 			int timestamp,
 			int flags,
 			int result,
 			unsigned int type),
 
-	TP_ARGS(device, drawctxt_id, numibs, timestamp,
+	TP_ARGS(device, drawctxt_id, cmdbatch, numibs, timestamp,
 		flags, result, type),
 
 	TP_STRUCT__entry(
@@ -73,7 +74,7 @@ TRACE_EVENT(kgsl_issueibcmds,
 		__entry->numibs,
 		__entry->timestamp,
 		__entry->flags ? __print_flags(__entry->flags, "|",
-						KGSL_DRAWOBJ_FLAGS) : "None",
+						KGSL_CMDBATCH_FLAGS) : "None",
 		__entry->result,
 		__print_symbolic(__entry->drawctxt_type, KGSL_CONTEXT_TYPES)
 	)
@@ -878,6 +879,78 @@ TRACE_EVENT(kgsl_regwrite,
 	)
 );
 
+TRACE_EVENT(kgsl_popp_level,
+
+	TP_PROTO(struct kgsl_device *device, int level1, int level2),
+
+	TP_ARGS(device, level1, level2),
+
+	TP_STRUCT__entry(
+		__string(device_name, device->name)
+		__field(int, level1)
+		__field(int, level2)
+	),
+
+	TP_fast_assign(
+		__assign_str(device_name, device->name);
+		__entry->level1 = level1;
+		__entry->level2 = level2;
+	),
+
+	TP_printk(
+		"d_name=%s old level=%d new level=%d",
+		__get_str(device_name), __entry->level1, __entry->level2)
+);
+
+TRACE_EVENT(kgsl_popp_mod,
+
+	TP_PROTO(struct kgsl_device *device, int x, int y),
+
+	TP_ARGS(device, x, y),
+
+	TP_STRUCT__entry(
+		__string(device_name, device->name)
+		__field(int, x)
+		__field(int, y)
+	),
+
+	TP_fast_assign(
+		__assign_str(device_name, device->name);
+		__entry->x = x;
+		__entry->y = y;
+	),
+
+	TP_printk(
+		"d_name=%s GPU busy mod=%d bus busy mod=%d",
+		__get_str(device_name), __entry->x, __entry->y)
+);
+
+TRACE_EVENT(kgsl_popp_nap,
+
+	TP_PROTO(struct kgsl_device *device, int t, int nap, int percent),
+
+	TP_ARGS(device, t, nap, percent),
+
+	TP_STRUCT__entry(
+		__string(device_name, device->name)
+		__field(int, t)
+		__field(int, nap)
+		__field(int, percent)
+	),
+
+	TP_fast_assign(
+		__assign_str(device_name, device->name);
+		__entry->t = t;
+		__entry->nap = nap;
+		__entry->percent = percent;
+	),
+
+	TP_printk(
+		"d_name=%s nap time=%d number of naps=%d percentage=%d",
+		__get_str(device_name), __entry->t, __entry->nap,
+			__entry->percent)
+);
+
 TRACE_EVENT(kgsl_register_event,
 		TP_PROTO(unsigned int id, unsigned int timestamp, void *func),
 		TP_ARGS(id, timestamp, func),
@@ -960,62 +1033,59 @@ TRACE_EVENT(kgsl_pagetable_destroy,
 );
 
 DECLARE_EVENT_CLASS(syncpoint_timestamp_template,
-	TP_PROTO(struct kgsl_drawobj_sync *syncobj,
-		struct kgsl_context *context,
+	TP_PROTO(struct kgsl_cmdbatch *cmdbatch, struct kgsl_context *context,
 		unsigned int timestamp),
-	TP_ARGS(syncobj, context, timestamp),
+	TP_ARGS(cmdbatch, context, timestamp),
 	TP_STRUCT__entry(
-		__field(unsigned int, syncobj_context_id)
+		__field(unsigned int, cmdbatch_context_id)
 		__field(unsigned int, context_id)
 		__field(unsigned int, timestamp)
 	),
 	TP_fast_assign(
-		__entry->syncobj_context_id = syncobj->base.context->id;
+		__entry->cmdbatch_context_id = cmdbatch->context->id;
 		__entry->context_id = context->id;
 		__entry->timestamp = timestamp;
 	),
 	TP_printk("ctx=%d sync ctx=%d ts=%d",
-		__entry->syncobj_context_id, __entry->context_id,
+		__entry->cmdbatch_context_id, __entry->context_id,
 		__entry->timestamp)
 );
 
 DEFINE_EVENT(syncpoint_timestamp_template, syncpoint_timestamp,
-	TP_PROTO(struct kgsl_drawobj_sync *syncobj,
-		struct kgsl_context *context,
+	TP_PROTO(struct kgsl_cmdbatch *cmdbatch, struct kgsl_context *context,
 		unsigned int timestamp),
-	TP_ARGS(syncobj, context, timestamp)
+	TP_ARGS(cmdbatch, context, timestamp)
 );
 
 DEFINE_EVENT(syncpoint_timestamp_template, syncpoint_timestamp_expire,
-	TP_PROTO(struct kgsl_drawobj_sync *syncobj,
-		struct kgsl_context *context,
+	TP_PROTO(struct kgsl_cmdbatch *cmdbatch, struct kgsl_context *context,
 		unsigned int timestamp),
-	TP_ARGS(syncobj, context, timestamp)
+	TP_ARGS(cmdbatch, context, timestamp)
 );
 
 DECLARE_EVENT_CLASS(syncpoint_fence_template,
-	TP_PROTO(struct kgsl_drawobj_sync *syncobj, char *name),
-	TP_ARGS(syncobj, name),
+	TP_PROTO(struct kgsl_cmdbatch *cmdbatch, char *name),
+	TP_ARGS(cmdbatch, name),
 	TP_STRUCT__entry(
 		__string(fence_name, name)
-		__field(unsigned int, syncobj_context_id)
+		__field(unsigned int, cmdbatch_context_id)
 	),
 	TP_fast_assign(
-		__entry->syncobj_context_id = syncobj->base.context->id;
+		__entry->cmdbatch_context_id = cmdbatch->context->id;
 		__assign_str(fence_name, name);
 	),
 	TP_printk("ctx=%d fence=%s",
-		__entry->syncobj_context_id, __get_str(fence_name))
+		__entry->cmdbatch_context_id, __get_str(fence_name))
 );
 
 DEFINE_EVENT(syncpoint_fence_template, syncpoint_fence,
-	TP_PROTO(struct kgsl_drawobj_sync *syncobj, char *name),
-	TP_ARGS(syncobj, name)
+	TP_PROTO(struct kgsl_cmdbatch *cmdbatch, char *name),
+	TP_ARGS(cmdbatch, name)
 );
 
 DEFINE_EVENT(syncpoint_fence_template, syncpoint_fence_expire,
-	TP_PROTO(struct kgsl_drawobj_sync *syncobj, char *name),
-	TP_ARGS(syncobj, name)
+	TP_PROTO(struct kgsl_cmdbatch *cmdbatch, char *name),
+	TP_ARGS(cmdbatch, name)
 );
 
 TRACE_EVENT(kgsl_msg,

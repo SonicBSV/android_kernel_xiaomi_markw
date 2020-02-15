@@ -52,8 +52,8 @@
 #include "debug.h"
 #include "xhci.h"
 
-#define DWC3_IDEV_CHG_MAX 2000
-#define DWC3_HVDCP_CHG_MAX 2000
+#define DWC3_IDEV_CHG_MAX 1500
+#define DWC3_HVDCP_CHG_MAX 1800
 #define DWC3_WAKEUP_SRC_TIMEOUT 5000
 
 #define MICRO_5V    5000000
@@ -2170,10 +2170,8 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 		dev_dbg(mdwc->dev, "defer suspend with %d(msecs)\n",
 					mdwc->lpm_to_suspend_delay);
 		pm_wakeup_event(mdwc->dev, mdwc->lpm_to_suspend_delay);
-#if 0
 	} else {
 		pm_relax(mdwc->dev);
-#endif
 	}
 
 	atomic_set(&dwc->in_lpm, 1);
@@ -2213,9 +2211,7 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 		return 0;
 	}
 
-#if 0
 	pm_stay_awake(mdwc->dev);
-#endif
 
 	/* Vote for TCXO while waking up USB HSPHY */
 	ret = clk_prepare_enable(mdwc->xo_clk);
@@ -2366,9 +2362,7 @@ static void dwc3_ext_event_notify(struct dwc3_msm *mdwc)
 		return;
 	}
 
-	if (mdwc->no_wakeup_src_in_hostmode && mdwc->in_host_mode)
-		pm_stay_awake(mdwc->dev);
-
+	pm_stay_awake(mdwc->dev);
 	queue_delayed_work(mdwc->sm_usb_wq, &mdwc->sm_work, 0);
 }
 

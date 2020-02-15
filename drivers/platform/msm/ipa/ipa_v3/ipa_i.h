@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -68,8 +68,6 @@
 #define IPA_PM_THRESHOLD_MAX 2
 #define IPA_MAX_NUM_REQ_CACHE 10
 
-#define IPA_TIMEOUT(value) (msecs_to_jiffies(value * 1000))
-
 #define IPADBG(fmt, args...) \
 	do { \
 		pr_debug(DRV_NAME " %s:%d " fmt, __func__, __LINE__, ## args);\
@@ -102,7 +100,7 @@
 
 #define IPAERR_RL(fmt, args...) \
 	do { \
-		pr_err_ratelimited(DRV_NAME " %s:%d " fmt, __func__,\
+		pr_err_ratelimited_ipa(DRV_NAME " %s:%d " fmt, __func__,\
 		__LINE__, ## args);\
 		if (ipa3_ctx) { \
 			IPA_IPC_LOGGING(ipa3_ctx->logbuf, \
@@ -208,6 +206,10 @@
 #define IPA_RULE_ID_MIN_VAL (0x01)
 #define IPA_RULE_ID_MAX_VAL (0x1FF)
 #define IPA_RULE_ID_RULE_MISS (0x3FF)
+
+#define IPA_RULE_ID_MIN (0x200)
+#define IPA_RULE_ID_MAX ((IPA_RULE_ID_MIN << 1) - 1)
+
 
 #define IPA_HDR_PROC_CTX_TABLE_ALIGNMENT_BYTE 8
 #define IPA_HDR_PROC_CTX_TABLE_ALIGNMENT(start_ofst) \
@@ -1318,6 +1320,7 @@ struct ipa3_context {
 	u32 curr_ipa_clk_rate;
 	bool q6_proxy_clk_vote_valid;
 	struct mutex q6_proxy_clk_vote_mutex;
+	u32 q6_proxy_clk_vote_cnt;
 	u32 ipa_num_pipes;
 	dma_addr_t pkt_init_imm[IPA3_MAX_NUM_PIPES];
 
@@ -2005,6 +2008,7 @@ int ipa3_enable_data_path(u32 clnt_hdl);
 int ipa3_disable_data_path(u32 clnt_hdl);
 int ipa3_alloc_rule_id(struct idr *rule_ids);
 int ipa3_id_alloc(void *ptr);
+bool ipa3_check_idr_if_freed(void *ptr);
 void *ipa3_id_find(u32 id);
 void ipa3_id_remove(u32 id);
 

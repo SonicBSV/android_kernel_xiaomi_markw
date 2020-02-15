@@ -795,7 +795,7 @@ static int cmdq_get_first_valid_tag(struct cmdq_host *cq_host)
 	}
 
 	tag = ffs(dbr_set) - 1;
-	pr_info("%s: error tag selected: tag = %d\n",
+	pr_err("%s: error tag selected: tag = %d\n",
 		mmc_hostname(cq_host->mmc), tag);
 	return tag;
 }
@@ -804,8 +804,8 @@ static bool cmdq_is_valid_tag(struct mmc_host *mmc, unsigned int tag)
 {
 	struct mmc_cmdq_context_info *ctx_info = &mmc->cmdq_ctx;
 
-	return ((tag == DCMD_SLOT) ||
-		    !!(ctx_info->data_active_reqs & (1 << tag)));
+	return
+	(!!(ctx_info->data_active_reqs & (1 << tag)) || tag == DCMD_SLOT);
 }
 
 static void cmdq_finish_data(struct mmc_host *mmc, unsigned int tag)

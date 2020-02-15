@@ -46,8 +46,8 @@ obj-$(CONFIG_MSM_GLINK_SMD_XPRT) += glink_smd_xprt.o
 obj-$(CONFIG_MSM_GLINK_SMEM_NATIVE_XPRT) += glink_smem_native_xprt.o
 obj-$(CONFIG_MSM_GLINK_BGCOM_XPRT) += glink_bgcom_xprt.o
 obj-$(CONFIG_MSM_SMEM_LOGGING) += smem_log.o
-obj-$(CONFIG_MSM_SMP2P) += smp2p.o smp2p_debug.o smp2p_sleepstate.o
-obj-$(CONFIG_MSM_SMP2P_TEST) += smp2p_loopback.o smp2p_test.o smp2p_spinlock_test.o
+obj-$(CONFIG_MSM_BG_GLINK) += bg_glink.o
+obj-$(CONFIG_MSM_SMP2P) += smp2p.o smp2p_loopback.o smp2p_debug.o smp2p_sleepstate.o
 obj-$(CONFIG_MSM_QMI_INTERFACE) += qmi_interface.o
 obj-$(CONFIG_MSM_IPC_ROUTER_SMD_XPRT) += ipc_router_smd_xprt.o
 obj-$(CONFIG_MSM_IPC_ROUTER_USB_XPRT) += ipc_router_usb_xprt.o
@@ -92,12 +92,12 @@ ifdef CONFIG_MSM_SUBSYSTEM_RESTART
 	obj-y += ramdump.o
 endif
 
+obj-$(CONFIG_MSM_BGRSB) += bg_rsb.o
 obj-$(CONFIG_MSM_BGCOM_INTERFACE) += bgcom_interface.o
 obj-$(CONFIG_MSM_SERVICE_NOTIFIER) += service-notifier.o
 obj-$(CONFIG_MSM_SYSMON_COMM) += sysmon.o sysmon-qmi.o
 obj-$(CONFIG_MSM_SECURE_BUFFER) += secure_buffer.o
 obj-$(CONFIG_TRACER_PKT) += tracer_pkt.o
-obj-$(CONFIG_ICNSS) += icnss.o wlan_firmware_service_v01.o
 obj-$(CONFIG_MSM_BAM_DMUX) += bam_dmux.o
 obj-$(CONFIG_MSM_SERVICE_LOCATOR) += service-locator.o
 obj-$(CONFIG_MSM_QBT1000) += qbt1000.o
@@ -110,3 +110,4 @@ obj-$(CONFIG_QCOM_EARLY_RANDOM)	+= early_random.o
 obj-$(CONFIG_MSM_HAB) += hab/
 obj-$(CONFIG_SERIAL_NUM) += serial_num.o
 obj-$(CONFIG_SECBOOT_FUSE) += secboot_fuse.o
+obj-$(CONFIG_QCOM_QDSS_BRIDGE) += qdss_bridge.o

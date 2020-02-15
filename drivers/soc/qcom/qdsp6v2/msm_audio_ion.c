@@ -756,13 +756,15 @@ fail_attach:
 static int msm_audio_smmu_init(struct device *dev)
 {
 	struct dma_iommu_mapping *mapping;
-	int ret;
+	int ret = 0;
 	int disable_htw = 1;
 
 	mapping = arm_iommu_create_mapping(
 					msm_iommu_get_bus(dev),
 					   MSM_AUDIO_ION_VA_START,
 					   MSM_AUDIO_ION_VA_LEN);
+	if (mapping == NULL)
+		goto fail_attach;
 	if (IS_ERR(mapping))
 		return PTR_ERR(mapping);
 

@@ -56,7 +56,6 @@ source "drivers/media/platform/msm/camera_v2/Kconfig"
 endif # MSMB_CAMERA
 endif
 
-source "drivers/media/platform/msm/ais/Kconfig"
 source "drivers/media/platform/msm/dvb/Kconfig"
 source "drivers/media/platform/msm/broadcast/Kconfig"
 source "drivers/media/platform/msm/sde/Kconfig"

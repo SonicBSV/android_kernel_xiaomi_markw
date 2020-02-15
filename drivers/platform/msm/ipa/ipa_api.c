@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2205,12 +2205,12 @@ int ipa_remove_interrupt_handler(enum ipa_irq_type interrupt)
 EXPORT_SYMBOL(ipa_remove_interrupt_handler);
 
 /**
- * ipa_restore_suspend_handler() - restores the original suspend IRQ handler
- * as it was registered in the IPA init sequence.
- * Return codes:
- * 0: success
- * -EPERM: failed to remove current handler or failed to add original handler
- */
+* ipa_restore_suspend_handler() - restores the original suspend IRQ handler
+* as it was registered in the IPA init sequence.
+* Return codes:
+* 0: success
+* -EPERM: failed to remove current handler or failed to add original handler
+* */
 int ipa_restore_suspend_handler(void)
 {
 	int ret;

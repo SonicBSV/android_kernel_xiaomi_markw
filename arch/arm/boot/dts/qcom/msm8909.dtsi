@@ -112,20 +112,12 @@
 			compatible = "android,firmware";
 			fstab {
 				compatible = "android,fstab";
-				vendor {
+				vendor_fstab: vendor {
 					compatible = "android,vendor";
 					dev = "/dev/block/platform/soc/7824900.sdhci/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = "wait";
-					status = "ok";
-				};
-				system {
-					compatible = "android,system";
-					dev = "/dev/block/platform/soc/7824900.sdhci/by-name/system";
-					type = "ext4";
-					mnt_flags = "ro,barrier=1";
-					fsmgr_flags = "wait";
+					fsmgr_flags = "wait,verify";
 					status = "ok";
 				};
 			};
@@ -563,6 +555,8 @@
 		qcom,freq-mitigation-value = <400000>;
 		qcom,online-hotplug-core;
 		qcom,therm-reset-temp = <115>;
+		qcom,synchronous-cluster-id = <0>;
+		qcom,synchronous-cluster-map = <0 4 &CPU0 &CPU1 &CPU2 &CPU3>;
 		qcom,disable-cx-phase-ctrl;
 		qcom,disable-gfx-phase-ctrl;
 		qcom,disable-vdd-mx;
@@ -1725,6 +1719,11 @@
 		afe_proxy_tx: qcom,msm-dai-q6-afe-proxy-tx {
 			compatible = "qcom,msm-dai-q6-dev";
 			qcom,msm-dai-q6-dev-id = <240>;
+		};
+
+		afe_loopback_tx: qcom,msm-dai-q6-afe-loopback-tx {
+			compatible = "qcom,msm-dai-q6-dev";
+			qcom,msm-dai-q6-dev-id = <24577>;
 		};
 
 		incall_record_rx: qcom,msm-dai-q6-incall-record-rx {

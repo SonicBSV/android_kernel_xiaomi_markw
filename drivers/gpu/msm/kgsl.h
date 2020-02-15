@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,25 +29,6 @@
 #include <linux/kthread.h>
 #include <asm/cacheflush.h>
 
-/*
- * --- kgsl drawobj flags ---
- * These flags are same as --- drawobj flags ---
- * but renamed to reflect that cmdbatch is renamed to drawobj.
- */
-#define KGSL_DRAWOBJ_MEMLIST           KGSL_CMDBATCH_MEMLIST
-#define KGSL_DRAWOBJ_MARKER            KGSL_CMDBATCH_MARKER
-#define KGSL_DRAWOBJ_SUBMIT_IB_LIST    KGSL_CMDBATCH_SUBMIT_IB_LIST
-#define KGSL_DRAWOBJ_CTX_SWITCH        KGSL_CMDBATCH_CTX_SWITCH
-#define KGSL_DRAWOBJ_PROFILING         KGSL_CMDBATCH_PROFILING
-#define KGSL_DRAWOBJ_PROFILING_KTIME   KGSL_CMDBATCH_PROFILING_KTIME
-#define KGSL_DRAWOBJ_END_OF_FRAME      KGSL_CMDBATCH_END_OF_FRAME
-#define KGSL_DRAWOBJ_SYNC              KGSL_CMDBATCH_SYNC
-#define KGSL_DRAWOBJ_PWR_CONSTRAINT    KGSL_CMDBATCH_PWR_CONSTRAINT
-#define KGSL_DRAWOBJ_SPARSE            KGSL_CMDBATCH_SPARSE
-
-#define kgsl_drawobj_profiling_buffer kgsl_cmdbatch_profiling_buffer
-
-
 /* The number of memstore arrays limits the number of contexts allowed.
  * If more contexts are needed, update multiple for MEMSTORE_SIZE
  */
@@ -56,6 +37,7 @@
 #define KGSL_PRIORITY_MAX_RB_LEVELS 4
 #define KGSL_MEMSTORE_MAX	(KGSL_MEMSTORE_SIZE / \
 	sizeof(struct kgsl_devmemstore) - 1 - KGSL_PRIORITY_MAX_RB_LEVELS)
+#define KGSL_MAX_CONTEXTS_PER_PROC 200
 
 #define MEMSTORE_RB_OFFSET(rb, field)	\
 	KGSL_MEMSTORE_OFFSET(((rb)->id + KGSL_MEMSTORE_MAX), field)
@@ -187,6 +169,8 @@ struct kgsl_memdesc_ops {
 #define KGSL_MEMDESC_TZ_LOCKED BIT(7)
 /* The memdesc is allocated through contiguous memory */
 #define KGSL_MEMDESC_CONTIG BIT(8)
+/* For global buffers, randomly assign an address from the region */
+#define KGSL_MEMDESC_RANDOM BIT(9)
 
 /**
  * struct kgsl_memdesc - GPU memory object descriptor

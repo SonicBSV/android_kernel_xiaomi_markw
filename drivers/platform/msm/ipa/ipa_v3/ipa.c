@@ -635,8 +635,8 @@ static void ipa3_wan_msg_free_cb(void *buff, u32 len, u32 type)
 	kfree(buff);
 }
 
-static int ipa3_send_wan_msg(unsigned long usr_param, uint8_t msg_type,
-								bool is_cache)
+static int ipa3_send_wan_msg(unsigned long usr_param,
+			uint8_t msg_type, bool is_cache)
 {
 	int retval;
 	struct ipa_wan_msg *wan_msg;
@@ -2526,7 +2526,6 @@ static int ipa3_q6_set_ex_path_to_apps(void)
 	struct ipahal_imm_cmd_register_write reg_write;
 	struct ipahal_imm_cmd_pyld *cmd_pyld;
 	int retval;
-	struct ipahal_reg_valmask valmask;
 
 	desc = kcalloc(ipa3_ctx->ipa_num_pipes, sizeof(struct ipa3_desc),
 			GFP_KERNEL);
@@ -2541,40 +2540,10 @@ static int ipa3_q6_set_ex_path_to_apps(void)
 		if (ep_idx == -1)
 			continue;
 
-		if (ipa3_ctx->ep[ep_idx].valid &&
-			ipa3_ctx->ep[ep_idx].skip_ep_cfg) {
-			BUG_ON(num_descs >= ipa3_ctx->ipa_num_pipes);
-
-			reg_write.skip_pipeline_clear = false;
-			reg_write.pipeline_clear_options =
-				IPAHAL_HPS_CLEAR;
-			reg_write.offset =
-				ipahal_get_reg_n_ofst(IPA_ENDP_STATUS_n,
-					ep_idx);
-			ipahal_get_status_ep_valmask(
-				ipa3_get_ep_mapping(IPA_CLIENT_APPS_LAN_CONS),
-				&valmask);
-			reg_write.value = valmask.val;
-			reg_write.value_mask = valmask.mask;
-			cmd_pyld = ipahal_construct_imm_cmd(
-				IPA_IMM_CMD_REGISTER_WRITE, &reg_write, false);
-			if (!cmd_pyld) {
-				IPAERR("fail construct register_write cmd\n");
-				BUG();
-			}
-
-			desc[num_descs].opcode = ipahal_imm_cmd_get_opcode(
-				IPA_IMM_CMD_REGISTER_WRITE);
-			desc[num_descs].type = IPA_IMM_CMD_DESC;
-			desc[num_descs].callback = ipa3_destroy_imm;
-			desc[num_descs].user1 = cmd_pyld;
-			desc[num_descs].pyld = cmd_pyld->data;
-			desc[num_descs].len = cmd_pyld->len;
-			num_descs++;
-		}
-
-		/* disable statuses for modem producers */
-		if (IPA_CLIENT_IS_Q6_PROD(client_idx)) {
+		/* disable statuses for all modem controlled prod pipes */
+		if (IPA_CLIENT_IS_Q6_PROD(client_idx) ||
+			(ipa3_ctx->ep[ep_idx].valid &&
+			ipa3_ctx->ep[ep_idx].skip_ep_cfg)) {
 			ipa_assert_on(num_descs >= ipa3_ctx->ipa_num_pipes);
 
 			reg_write.skip_pipeline_clear = false;
@@ -2651,8 +2620,8 @@ void ipa3_q6_pre_shutdown_cleanup(void)
 		BUG();
 	}
 	/* Remove delay from Q6 PRODs to avoid pending descriptors
-	  * on pipe reset procedure
-	  */
+	 * on pipe reset procedure
+	 */
 	ipa3_q6_pipe_delay(false);
 	ipa3_set_reset_client_prod_pipe_delay(true,
 		IPA_CLIENT_USB_PROD);
@@ -4138,12 +4107,12 @@ void ipa3_suspend_handler(enum ipa_irq_type interrupt,
 }
 
 /**
- * ipa3_restore_suspend_handler() - restores the original suspend IRQ handler
- * as it was registered in the IPA init sequence.
- * Return codes:
- * 0: success
- * -EPERM: failed to remove current handler or failed to add original handler
- */
+* ipa3_restore_suspend_handler() - restores the original suspend IRQ handler
+* as it was registered in the IPA init sequence.
+* Return codes:
+* 0: success
+* -EPERM: failed to remove current handler or failed to add original handler
+* */
 int ipa3_restore_suspend_handler(void)
 {
 	int result = 0;
@@ -4602,6 +4571,7 @@ static int ipa3_post_init(const struct ipa3_plat_drv_res *resource_p,
 	ipa3_register_panic_hdlr();
 
 	ipa3_ctx->q6_proxy_clk_vote_valid = true;
+	ipa3_ctx->q6_proxy_clk_vote_cnt++;
 
 	mutex_lock(&ipa3_ctx->lock);
 	ipa3_ctx->ipa_initialization_complete = true;
@@ -4632,7 +4602,7 @@ static void ipa3_post_init_wq(struct work_struct *work)
 static int ipa3_manual_load_ipa_fws(void)
 {
 	int result;
-	const struct firmware *fw;
+	const struct firmware *fw = NULL;
 
 	IPADBG("Manual FW loading process initiated\n");
 
@@ -4680,6 +4650,8 @@ static int ipa3_pil_load_ipa_fws(void)
 	if (IS_ERR_OR_NULL(subsystem_get_retval)) {
 		IPAERR("Unable to trigger PIL process for FW loading\n");
 		return -EINVAL;
+	} else {
+		subsystem_put(subsystem_get_retval);
 	}
 
 	IPADBG("PIL FW loading process is complete\n");
@@ -4703,6 +4675,9 @@ static ssize_t ipa3_write(struct file *file, const char __user *buf,
 		IPAERR("Unable to copy data from user\n");
 		return -EFAULT;
 	}
+
+	if (count > 0)
+		dbg_buff[count] = '\0';
 
 	/* Prevent consequent calls from trying to load the FW again. */
 	if (ipa3_is_ready())
@@ -4862,37 +4837,39 @@ static int ipa3_alloc_pkt_init(void)
 }
 
 /**
- * ipa3_pre_init() - Initialize the IPA Driver.
- * This part contains all initialization which doesn't require IPA HW, such
- * as structure allocations and initializations, register writes, etc.
- *
- * @resource_p:	contain platform specific values from DST file
- * @pdev:	The platform device structure representing the IPA driver
- *
- * Function initialization process:
- * Allocate memory for the driver context data struct
- * Initializing the ipa3_ctx with :
- *    1)parsed values from the dts file
- *    2)parameters passed to the module initialization
- *    3)read HW values(such as core memory size)
- * Map IPA core registers to CPU memory
- * Restart IPA core(HW reset)
- * Initialize the look-aside caches(kmem_cache/slab) for filter,
- *   routing and IPA-tree
- * Create memory pool with 4 objects for DMA operations(each object
- *   is 512Bytes long), this object will be use for tx(A5->IPA)
- * Initialize lists head(routing, hdr, system pipes)
- * Initialize mutexes (for ipa_ctx and NAT memory mutexes)
- * Initialize spinlocks (for list related to A5<->IPA pipes)
- * Initialize 2 single-threaded work-queue named "ipa rx wq" and "ipa tx wq"
- * Initialize Red-Black-Tree(s) for handles of header,routing rule,
- *  routing table ,filtering rule
- * Initialize the filter block by committing IPV4 and IPV6 default rules
- * Create empty routing table in system memory(no committing)
- * Create a char-device for IPA
- * Initialize IPA RM (resource manager)
- * Configure GSI registers (in GSI case)
- */
+* ipa3_pre_init() - Initialize the IPA Driver.
+* This part contains all initialization which doesn't require IPA HW, such
+* as structure allocations and initializations, register writes, etc.
+*
+* @resource_p:	contain platform specific values from DST file
+* @pdev:	The platform device structure representing the IPA driver
+*
+* Function initialization process:
+* * Allocate memory for the driver context data struct
+* * Initializing the ipa3_ctx with:
+*    1)parsed values from the dts file
+*    2)parameters passed to the module initialization
+*    3)read HW values(such as core memory size)
+* * Map IPA core registers to CPU memory
+* * Restart IPA core(HW reset)
+* * Set configuration for IPA BAM via BAM_CNFG_BITS
+* * Initialize the look-aside caches(kmem_cache/slab) for filter,
+*   routing and IPA-tree
+* * Create memory pool with 4 objects for DMA operations(each object
+*   is 512Bytes long), this object will be use for tx(A5->IPA)
+* * Initialize lists head(routing, hdr, system pipes)
+* * Initialize mutexes (for ipa_ctx and NAT memory mutexes)
+* * Initialize spinlocks (for list related to A5<->IPA pipes)
+* * Initialize 2 single-threaded work-queue named "ipa rx wq" and "ipa tx wq"
+* * Initialize Red-Black-Tree(s) for handles of header,routing rule,
+*   routing table ,filtering rule
+* * Initialize the filter block by committing IPV4 and IPV6 default rules
+* * Create empty routing table in system memory(no committing)
+* * Initialize pipes memory pool with ipa3_pipe_mem_init for supported platforms
+* * Create a char-device for IPA
+* * Initialize IPA RM (resource manager)
+* * Configure GSI registers (in GSI case)
+*/
 static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 		struct device *ipa_dev)
 {
@@ -4912,7 +4889,7 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 
 	ipa3_ctx->logbuf = ipc_log_context_create(IPA_IPC_LOG_PAGES, "ipa", 0);
 	if (ipa3_ctx->logbuf == NULL)
-		IPAERR("failed to create IPC log, continue...\n");
+		IPADBG("failed to create IPC log, continue...\n");
 
 	ipa3_ctx->pdev = ipa_dev;
 	ipa3_ctx->uc_pdev = ipa_dev;
@@ -5236,6 +5213,7 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 	mutex_init(&ipa3_ctx->nat_mem.lock);
 	mutex_init(&ipa3_ctx->q6_proxy_clk_vote_mutex);
 	mutex_init(&ipa3_ctx->ipa_cne_evt_lock);
+	ipa3_ctx->q6_proxy_clk_vote_cnt = 0;
 
 	idr_init(&ipa3_ctx->ipa_idr);
 	spin_lock_init(&ipa3_ctx->idr_lock);
@@ -5842,7 +5820,7 @@ static int ipa_smmu_uc_cb_probe(struct device *dev)
 	int bypass = 1;
 	int fast = 1;
 	int ret;
-	u32 iova_ap_mapping[2];
+	u32 iova_ap_mapping[2] = {0};
 
 	IPADBG("UC CB PROBE sub pdev=%p\n", dev);
 
@@ -5953,7 +5931,7 @@ static int ipa_smmu_ap_cb_probe(struct device *dev)
 	int atomic_ctx = 1;
 	int fast = 1;
 	int bypass = 1;
-	u32 iova_ap_mapping[2];
+	u32 iova_ap_mapping[2] = {0};
 	u32 add_map_size;
 	const u32 *add_map;
 	void *smem_addr;

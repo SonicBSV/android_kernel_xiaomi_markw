@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -554,8 +554,8 @@ static void ipa_wan_msg_free_cb(void *buff, u32 len, u32 type)
 	kfree(buff);
 }
 
-static int ipa_send_wan_msg(unsigned long usr_param, uint8_t msg_type,
-	bool is_cache)
+static int ipa_send_wan_msg(unsigned long usr_param,
+			uint8_t msg_type, bool is_cache)
 {
 	int retval;
 	struct ipa_wan_msg *wan_msg;
@@ -1520,7 +1520,7 @@ static long ipa_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 /**
 * ipa_setup_dflt_rt_tables() - Setup default routing tables
-
+*
 * Return codes:
 * 0: success
 * -ENOMEM: failed to allocate memory
@@ -2043,6 +2043,7 @@ static int ipa_q6_set_ex_path_dis_agg(void)
 	int index;
 	struct ipa_register_write *reg_write;
 	int retval;
+	gfp_t flag = GFP_KERNEL | (ipa_ctx->use_dma_zone ? GFP_DMA : 0);
 
 	desc = kcalloc(ipa_ctx->ipa_num_pipes, sizeof(struct ipa_desc),
 			GFP_KERNEL);
@@ -2060,7 +2061,7 @@ static int ipa_q6_set_ex_path_dis_agg(void)
 		if (ipa_ctx->ep[ep_idx].valid &&
 			ipa_ctx->ep[ep_idx].skip_ep_cfg) {
 			BUG_ON(num_descs >= ipa_ctx->ipa_num_pipes);
-			reg_write = kzalloc(sizeof(*reg_write), GFP_KERNEL);
+			reg_write = kzalloc(sizeof(*reg_write), flag);
 
 			if (!reg_write) {
 				IPAERR("failed to allocate memory\n");
@@ -2093,7 +2094,7 @@ static int ipa_q6_set_ex_path_dis_agg(void)
 			continue;
 		if (IPA_CLIENT_IS_Q6_NON_ZIP_CONS(client_idx) ||
 			IPA_CLIENT_IS_Q6_ZIP_CONS(client_idx)) {
-			reg_write = kzalloc(sizeof(*reg_write), GFP_KERNEL);
+			reg_write = kzalloc(sizeof(*reg_write), flag);
 
 			if (!reg_write) {
 				IPAERR("failed to allocate memory\n");
@@ -3940,7 +3941,7 @@ static int ipa_init(const struct ipa_plat_drv_res *resource_p,
 
 	ipa_ctx->logbuf = ipc_log_context_create(IPA_IPC_LOG_PAGES, "ipa", 0);
 	if (ipa_ctx->logbuf == NULL)
-		IPAERR("failed to create IPC log, continue...\n");
+		IPADBG("failed to create IPC log, continue...\n");
 
 	ipa_ctx->pdev = ipa_dev;
 	ipa_ctx->uc_pdev = ipa_dev;

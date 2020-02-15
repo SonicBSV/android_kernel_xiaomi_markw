@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -556,8 +556,10 @@ static int msm_comm_vote_bus(struct msm_vidc_core *core)
 		else
 			vote_data[i].fps = inst->prop.fps;
 
-		if (msm_comm_turbo_session(inst))
-			vote_data[i].power_mode = VIDC_POWER_TURBO;
+		if (msm_comm_turbo_session(inst)) {
+			if (msm_comm_get_inst_load(inst, LOAD_CALC_NO_QUIRKS))
+				vote_data[i].power_mode = VIDC_POWER_TURBO;
+		}
 		else if (is_low_power_session(inst))
 			vote_data[i].power_mode = VIDC_POWER_LOW;
 		else
@@ -728,16 +730,16 @@ static void handle_sys_init_done(enum hal_command_response cmd, void *data)
 	return;
 }
 
-static void put_inst_helper(struct kref *kref)
-{
-	struct msm_vidc_inst *inst = container_of(kref,
-			struct msm_vidc_inst, kref);
-
-	msm_vidc_destroy(inst);
-}
-
 void put_inst(struct msm_vidc_inst *inst)
 {
+	void put_inst_helper(struct kref *kref)
+	{
+		struct msm_vidc_inst *inst = container_of(kref,
+				struct msm_vidc_inst, kref);
+
+		msm_vidc_destroy(inst);
+	}
+
 	if (!inst)
 		return;
 
@@ -2077,8 +2079,6 @@ static void handle_fbd(enum hal_command_response cmd, void *data)
 			vb->v4l2_buf.flags |= V4L2_QCOM_BUF_FLAG_READONLY;
 		if (fill_buf_done->flags1 & HAL_BUFFERFLAG_EOS)
 			vb->v4l2_buf.flags |= V4L2_QCOM_BUF_FLAG_EOS;
-		if (fill_buf_done->flags1 & HAL_BUFFERFLAG_ENDOFFRAME)
-			vb->v4l2_buf.flags |= V4L2_QCOM_BUF_FLAG_ENDOFFRAME;
 		if (fill_buf_done->flags1 & HAL_BUFFERFLAG_CODECCONFIG)
 			vb->v4l2_buf.flags &= ~V4L2_QCOM_BUF_FLAG_CODECCONFIG;
 		if (fill_buf_done->flags1 & HAL_BUFFERFLAG_SYNCFRAME)
@@ -3019,7 +3019,7 @@ static int set_output_buffers(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 	struct msm_smem *handle;
-	struct internal_buf *binfo = NULL;
+	struct internal_buf *binfo;
 	u32 smem_flags = 0, buffer_size;
 	struct hal_buffer_requirements *output_buf, *extradata_buf;
 	int i;
@@ -3125,10 +3125,10 @@ static int set_output_buffers(struct msm_vidc_inst *inst,
 	}
 	return rc;
 fail_set_buffers:
-	msm_comm_smem_free(inst, handle);
-err_no_mem:
 	kfree(binfo);
 fail_kzalloc:
+	msm_comm_smem_free(inst, handle);
+err_no_mem:
 	return rc;
 }
 
@@ -3743,17 +3743,17 @@ int msm_comm_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb)
 	 * Don't queue if:
 	 * 1) Hardware isn't ready (that's simple)
 	 */
-	defer = defer || (inst->state != MSM_VIDC_START_DONE);
+	defer = defer ?: inst->state != MSM_VIDC_START_DONE;
 
 	/*
 	 * 2) The client explicitly tells us not to because it wants this
 	 * buffer to be batched with future frames.  The batch size (on both
 	 * capabilities) is completely determined by the client.
 	 */
-	defer = defer || (vb && vb->v4l2_buf.flags & V4L2_MSM_BUF_FLAG_DEFER);
+	defer = defer ?: vb && vb->v4l2_buf.flags & V4L2_MSM_BUF_FLAG_DEFER;
 
 	/* 3) If we're in batch mode, we must have full batches of both types */
-	defer = defer || (batch_mode && (!output_count || !capture_count));
+	defer = defer ?: batch_mode && (!output_count || !capture_count);
 
 	if (defer) {
 		dprintk(VIDC_DBG, "Deferring queue of %pK\n", vb);
