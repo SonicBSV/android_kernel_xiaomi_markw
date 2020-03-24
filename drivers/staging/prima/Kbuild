@@ -23,6 +23,12 @@ ifeq ($(KERNEL_BUILD), 0)
 #Flag to enable Legacy Fast Roaming(LFR)
     CONFIG_PRIMA_WLAN_LFR := y
 
+#Flag to enable SAE
+    CONFIG_WLAN_FEATURE_SAE := y
+
+#Flag to enable OWE
+    CONFIG_WLAN_AKM_SUITE_OWE := y
+
 #Flag to enable Legacy Fast Roaming(LFR) Make Before Break
     CONFIG_PRIMA_WLAN_LFR_MBB := y
 
@@ -100,9 +106,9 @@ else
 endif # ANDROID_BUILD_TOP
 else
 ifneq ($(ANDROID_BUILD_TOP),)
-    WLAN_BLD_DIR := $(ANDROID_BUILD_TOP)/device/qcom/msm8909w/opensource/wlan
+    WLAN_BLD_DIR := $(ANDROID_BUILD_TOP)/device/qcom/sdm429w/opensource/wlan
 else
-    WLAN_BLD_DIR := device/qcom/msm8909w/opensource/wlan
+    WLAN_BLD_DIR := $(BOARD_OPENSOURCE_DIR)/wlan
 endif # ANDROID_BUILD_TOP
 endif # TARGET_SUPPORTS_WEARABLES
 endif # WLAN_PROPRIETARY
@@ -603,6 +609,7 @@ CDEFINES :=	-DANI_BUS_TYPE_PLATFORM=1 \
 		-DWLANTL_DEBUG\
 		-DWLAN_NS_OFFLOAD \
 		-DWLAN_ACTIVEMODE_OFFLOAD_FEATURE \
+		-DWLAN_FEATURE_HOLD_RX_WAKELOCK \
 		-DWLAN_SOFTAP_VSTA_FEATURE \
 		-DWLAN_FEATURE_ROAM_SCAN_OFFLOAD \
 		-DWLAN_FEATURE_GTK_OFFLOAD \
@@ -674,6 +681,14 @@ endif
 
 ifeq ($(CONFIG_PRIMA_WLAN_LFR),y)
 CDEFINES += -DFEATURE_WLAN_LFR
+endif
+
+ifeq ($(CONFIG_WLAN_FEATURE_SAE),y)
+CDEFINES += -DWLAN_FEATURE_SAE
+endif
+
+ifeq ($(CONFIG_WLAN_AKM_SUITE_OWE),y)
+CDEFINES += -DWLAN_AKM_SUITE_OWE
 endif
 
 ifeq ($(CONFIG_PRIMA_WLAN_LFR_MBB),y)
@@ -750,10 +765,10 @@ EXTRA_CFLAGS += $(call cc-disable-warning,maybe-uninitialized,) -Wno-unused-func
 # Not gonna fix these warnings, clang!
 ifeq ($(cc-name),clang)
 EXTRA_CFLAGS += $(call cc-disable-warning,array-bounds,)
+endif
 EXTRA_CFLAGS += $(call cc-disable-warning,enum-conversion,)
 EXTRA_CFLAGS += $(call cc-disable-warning,non-literal-null-conversion,)
 EXTRA_CFLAGS += $(call cc-disable-warning,typedef-redefinition,)
-endif
 
 ifeq ($(CONFIG_WLAN_OFFLOAD_PACKETS),y)
 CDEFINES += -DWLAN_FEATURE_OFFLOAD_PACKETS
