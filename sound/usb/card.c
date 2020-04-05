@@ -606,9 +606,12 @@ snd_usb_audio_probe(struct usb_device *dev,
 
  __error:
 	if (chip) {
+		/* chip->probing is inside the chip->card object,
+		 * reset before memory is possibly returned.
+		 */
+		chip->probing = 0;
 		if (!chip->num_interfaces)
 			snd_card_free(chip->card);
-		chip->probing = 0;
 	}
 	mutex_unlock(&register_mutex);
  __err_val:
@@ -623,7 +626,6 @@ static void snd_usb_audio_disconnect(struct usb_device *dev,
 				     struct snd_usb_audio *chip)
 {
 	struct snd_card *card;
-	struct usb_mixer_interface *mixer;
 	struct list_head *p;
 	bool was_shutdown;
 
@@ -655,8 +657,7 @@ static void snd_usb_audio_disconnect(struct usb_device *dev,
 		}
 		/* release mixer resources */
 		list_for_each(p, &chip->mixer_list) {
-			mixer = list_entry(p, struct usb_mixer_interface, list);
-			snd_usb_mixer_disconnect(mixer);
+			snd_usb_mixer_disconnect(p);
 		}
 	}
 
