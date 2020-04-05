@@ -1890,11 +1890,13 @@ static int msm8x16_wcd_codec_enable_on_demand_supply(
 				 __func__, on_demand_supply_name[w->shift]);
 			goto out;
 		}
-		if (atomic_dec_return(&supply->ref) == 0)
+		if (atomic_dec_return(&supply->ref) == 0) {
 			ret = regulator_disable(supply->supply);
-		if (ret)
-			dev_err(codec->dev, "%s: Failed to disable %s\n",
-				__func__, on_demand_supply_name[w->shift]);
+			if (ret)
+				dev_err(codec->dev, "%s: Failed to disable %s\n",
+					__func__,
+					on_demand_supply_name[w->shift]);
+		}
 		break;
 	default:
 		break;
@@ -2651,11 +2653,10 @@ static const struct snd_kcontrol_new msm8x16_wcd_snd_controls[] = {
 	SOC_SINGLE_SX_TLV("RX3 Digital Volume",
 			  MSM8X16_WCD_A_CDC_RX3_VOL_CTL_B2_CTL,
 			0,  -84, 40, digital_gain),
-
+#endif
 	SOC_SINGLE_SX_TLV("DEC1 Volume",
 			  MSM8X16_WCD_A_CDC_TX1_VOL_CTL_GAIN,
 			0,  -84, 40, digital_gain),
-#endif
 	SOC_SINGLE_SX_TLV("DEC2 Volume",
 			  MSM8X16_WCD_A_CDC_TX2_VOL_CTL_GAIN,
 			0,  -84, 40, digital_gain),
@@ -4354,7 +4355,7 @@ void msm8x16_wcd_codec_set_headset_state(u32 state)
 	switch_set_state((struct switch_dev *)&accdet_data, state);
 	accdet_state = state;
 }
-  		  
+
 int msm8x16_wcd_codec_get_headset_state(void)
 {
 	pr_debug("%s accdet_state = %d\n", __func__, accdet_state);
@@ -4509,7 +4510,7 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"LINEOUT PA", NULL, "LINE_OUT"},
 	{"LINE_OUT", "Switch", "LINEOUT DAC"},
 	{"LINEOUT DAC", NULL, "RX3 CHAIN"},
-#ifdef CONFIG_MACH_XIAOMI_MIDO
+#if (defined CONFIG_MACH_XIAOMI_MIDO) || (defined CONFIG_MACH_XIAOMI_TISSOT)
 	{ "Ext Spk", NULL, "LINEOUT PA"},
 #endif
 
@@ -4559,9 +4560,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"RX2 MIX1 INP2", "RX3", "I2S RX3"},
 	{"RX2 MIX1 INP2", "IIR1", "IIR1"},
 	{"RX2 MIX1 INP2", "IIR2", "IIR2"},
-	{"RX2 MIX1 INP3", "RX1", "I2S RX1"},
-	{"RX2 MIX1 INP3", "RX2", "I2S RX2"},
-	{"RX2 MIX1 INP3", "RX3", "I2S RX3"},
 
 	{"RX3 MIX1 INP1", "RX1", "I2S RX1"},
 	{"RX3 MIX1 INP1", "RX2", "I2S RX2"},
@@ -4573,9 +4571,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"RX3 MIX1 INP2", "RX3", "I2S RX3"},
 	{"RX3 MIX1 INP2", "IIR1", "IIR1"},
 	{"RX3 MIX1 INP2", "IIR2", "IIR2"},
-	{"RX3 MIX1 INP3", "RX1", "I2S RX1"},
-	{"RX3 MIX1 INP3", "RX2", "I2S RX2"},
-	{"RX3 MIX1 INP3", "RX3", "I2S RX3"},
 
 	{"RX1 MIX2 INP1", "IIR1", "IIR1"},
 	{"RX2 MIX2 INP1", "IIR1", "IIR1"},
@@ -4988,7 +4983,7 @@ static int msm8x16_wcd_codec_enable_lo_pa(struct snd_soc_dapm_widget *w,
 			MSM8X16_WCD_A_CDC_RX3_B6_CTL, 0x01, 0x00);
 		break;
 #else
-	case SND_SOC_DAPM_PRE_PMD:
+	case SND_SOC_DAPM_POST_PMD:
 		snd_soc_update_bits(codec,
 			MSM8X16_WCD_A_CDC_RX3_B6_CTL, 0x01, 0x01);
 		break;
@@ -5180,8 +5175,8 @@ static const struct snd_soc_dapm_widget msm8x16_wcd_dapm_widgets[] = {
 			SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
 #else
 	SND_SOC_DAPM_PGA_E("LINEOUT PA", MSM8X16_WCD_A_ANALOG_RX_LO_EN_CTL,
-			6, 0 , NULL, 0, msm8x16_wcd_codec_enable_lo_pa,
-			SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
+			5, 0 , NULL, 0, msm8x16_wcd_codec_enable_lo_pa,
+			SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
 #endif
 
 	SND_SOC_DAPM_SUPPLY("VDD_SPKDRV", SND_SOC_NOPM, 0, 0,
@@ -5554,7 +5549,7 @@ static struct regulator *wcd8x16_wcd_codec_find_regulator(
 			return msm8x16->supplies[i].consumer;
 	}
 
-	dev_dbg(msm8x16->dev, "Error: regulator not found:%s\n"
+	dev_err(msm8x16->dev, "Error: regulator not found:%s\n"
 				, name);
 	return NULL;
 }
@@ -6061,7 +6056,7 @@ static int msm8x16_wcd_codec_probe(struct snd_soc_codec *codec)
 	accdet_data.name = "h2w";
 	accdet_data.index = 0;
 	accdet_data.state = 0;
-  		  
+
 	ret = switch_dev_register(&accdet_data);
 	if (ret) {
 		dev_err(codec->dev, "%s: Failed to register h2w\n", __func__);
@@ -6612,4 +6607,3 @@ module_exit(msm8x16_wcd_codec_exit);
 MODULE_DESCRIPTION("MSM8x16 Audio codec driver");
 MODULE_LICENSE("GPL v2");
 MODULE_DEVICE_TABLE(of, msm8x16_wcd_spmi_id_table);
-

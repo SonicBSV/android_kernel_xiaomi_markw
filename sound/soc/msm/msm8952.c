@@ -1195,12 +1195,13 @@ static int msm8952_wsa_switch_event(struct snd_soc_dapm_widget *w,
 				__func__);
 			return ret;
 		}
-		if (atomic_dec_return(&supply->ref) == 0)
+		if (atomic_dec_return(&supply->ref) == 0) {
 			ret = regulator_disable(supply->supply);
-		if (ret)
-			dev_err(w->codec->component.card->dev,
-				"%s: Failed to disable wsa switch supply\n",
-				__func__);
+			if (ret)
+				dev_err(w->codec->component.card->dev,
+					"%s: Failed to disable wsa switch supply\n",
+					__func__);
+		}
 		break;
 	default:
 		break;
@@ -1654,7 +1655,7 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 		return NULL;
 
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm8952_wcd_cal)->X) = (Y))
-#if defined(CONFIG_MACH_XIAOMI_MIDO) || defined(CONFIG_MACH_XIAOMI_MARKW)
+#ifdef CONFIG_MACH_XIAOMI_MIDO
 	S(v_hs_max, 1600);
 #else
 	S(v_hs_max, 1500);
