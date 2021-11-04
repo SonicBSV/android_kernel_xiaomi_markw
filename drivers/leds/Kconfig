@@ -561,6 +561,11 @@ config LEDS_VERSATILE
 	  This option enabled support for the LEDs on the ARM Versatile
 	  and RealView boards. Say Y to enabled these.
 
+config FLASHLIGHT_MARKW
+       bool "config flashlight daisy"
+       help
+         config flashlight daisy.
+
 config LEDS_AW2013
 	tristate "LED support for AW2013"
 	depends on LEDS_CLASS && I2C
